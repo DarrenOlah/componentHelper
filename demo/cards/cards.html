@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AU card components — copy/paste into DNN</title>
+
+<style>
+  /* ============================================================
+     Demo page chrome only — NOT part of any card component.
+     Each card's own CSS lives inside its copyable block below.
+     ============================================================ */
+
+  /* Brand G.I. fonts for the PREVIEW ONLY. The copy blocks reference the
+     "GI-530"/"GI-400" families but ship no @font-face (production DNN already
+     loads them) — these page-level rules just let the preview render true. */
+  @font-face {
+    font-family: "GI-530";
+    src: url("../ARMY_G.I.Fonts_FINAL/woff2/G.I.-530.woff2") format("woff2");
+    font-weight: 530; font-style: normal; font-display: swap;
+  }
+  @font-face {
+    font-family: "GI-400";
+    src: url("../ARMY_G.I.Fonts_FINAL/woff2/G.I.-400.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 2rem;
+    background: #f3f3f3;
+    color: #1b1b1b;
+    line-height: 1.4;
+  }
+  .page-head { max-width: 1100px; margin: 0 auto 2rem; }
+  .page-head h1 { font-size: 1.4rem; margin: 0 0 .5rem; }
+  .page-head p { margin: 0; color: #555; font-size: .95rem; }
+  .page-head code { background: #e7e7e7; padding: .1em .35em; border-radius: 3px; }
+
+  .cards { max-width: 1100px; margin: 0 auto; display: grid; gap: 2.5rem; }
+
+  /* One card = preview on the left, copyable source on the right. */
+  .dnn-card {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .dnn-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .75rem 1rem;
+    background: #fafafa;
+    border-bottom: 1px solid #ececec;
+  }
+  .dnn-card__head h2 {
+    font-size: .8rem; text-transform: uppercase; letter-spacing: .05em;
+    color: #666; margin: 0;
+  }
+  .copy-btn {
+    font: inherit; font-size: .8rem; font-weight: 600;
+    color: #fff; background: #1b1b1b;
+    border: 0; border-radius: 5px; padding: .45rem .8rem;
+    cursor: pointer; white-space: nowrap;
+  }
+  .copy-btn:hover { background: #000; }
+  .copy-btn.is-copied { background: #2e7d32; }
+
+  .dnn-card__body {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(0, 1.2fr);
+    gap: 1.25rem;
+    padding: 1.25rem;
+  }
+  @media (max-width: 760px) { .dnn-card__body { grid-template-columns: 1fr; } }
+
+  /* Live render of the exact block. The block's inline <style> applies here. */
+  .dnn-card__preview {
+    display: flex;
+    align-items: flex-start;     /* don't stretch/flatten fixed-height cards */
+    align-self: start;          /* size to the card; don't stretch to the source column
+                                   (otherwise the card's height:100% fills a too-tall cell) */
+    padding: .5rem;
+    background:
+      repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+    border-radius: 6px;
+    min-height: 280px;
+  }
+  .dnn-card__preview > * { width: 100%; }
+
+  .dnn-card__source { display: flex; flex-direction: column; }
+  .dnn-card__code {
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 280px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    tab-size: 2;
+    color: #1b1b1b;
+    background: #fbfbfb;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: .75rem;
+    white-space: pre;
+    overflow: auto;
+  }
+</style>
+</head>
+<body>
+
+  <div class="page-head">
+    <h1>AU card components</h1>
+    <p>
+      Each block below is exactly what to paste into a DNN <code>Text/HTML</code>
+      module — the <code>&lt;style&gt;</code> and markup together. Hit
+      <strong>Copy block</strong>, paste, then swap the image <code>src</code> for a
+      real <code>/Portals/…</code> path. This page is the single source of truth —
+      iterate here.
+    </p>
+  </div>
+
+  <div class="cards">
+
+    <!-- ===== 1) Icon card ===== -->
+    <article class="dnn-card">
+      <div class="dnn-card__head">
+        <h2>Icon card — overhanging square</h2>
+        <button class="copy-btn" type="button">Copy block</button>
+      </div>
+      <div class="dnn-card__body">
+        <div class="dnn-card__preview"></div>
+        <div class="dnn-card__source">
+          <textarea class="dnn-card__code" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+      <script type="text/template">
+<!-- au-icon-card: icon card with overhanging square. Paste the whole block into an HTML module. -->
+<style type="text/css">
+  .au-icon-card {
+    --au-gold: #FFCC33;
+    --au-gold-hover: #e6b800;
+    --au-ink: #000;
+    --au-surface: #000;
+    --au-band: 44px;
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;               /* fill an equal-height column when stretched;
+                                   sizes to content when standalone (no min-height) */
+    width: 100%;                /* adapt to the container (e.g. a Bootstrap column) */
+    max-width: 400px;
+    margin-top: 60px;           /* leaves room for the overhanging square */
+    padding: 60px 0 0;          /* top room for the square; button is full-bleed */
+    background: var(--au-surface);
+    color: #fff;
+    text-align: center;
+  }
+  .au-icon-card:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
+  .au-icon-card__icon {
+    position: absolute;
+    top: -45px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90px;
+    height: 90px;
+    border: 3px solid #fff;     /* sharp-edged square */
+    object-fit: cover;
+    object-position: center;
+    background: var(--au-surface);   /* fallback shown until the icon loads */
+  }
+  /* optional heading — delete this rule and the <h3> if you don't need it.
+     !important guards against host skins that recolor/restyle headings. */
+  .au-icon-card__title {
+    margin: 0 0 8px !important;
+    padding: 0 24px !important;
+    color: #fff !important;            /* beat host heading colors */
+    background: transparent !important;
+    font-family: "GI-530", system-ui, Arial, sans-serif !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+    text-transform: uppercase !important;
+  }
+  .au-icon-card__text {
+    margin: 0 !important;
+    padding: 0 24px 24px !important;    /* breathing room before the button */
+    color: #fff !important;
+    font-family: "GI-400", system-ui, Arial, sans-serif !important;
+    font-weight: 400 !important;
+    font-size: 16px !important;
+  }
+  /* :link/:visited and !important so host anchor styles can't clobber the button */
+  .au-icon-card__btn,
+  .au-icon-card__btn:link,
+  .au-icon-card__btn:visited {
+    margin-top: auto;           /* pin the button to the bottom of the card */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--au-band);
+    box-sizing: border-box;
+    padding: 0 12px;
+    background: var(--au-gold) !important;
+    color: var(--au-ink) !important;
+    font-family: "GI-530", system-ui, Arial, sans-serif !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+    text-transform: uppercase !important;
+    text-align: center;
+    text-decoration: none !important;   /* host adds underlines to links */
+  }
+  .au-icon-card__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
+  .au-icon-card__btn:hover,
+  .au-icon-card__btn:focus {
+    color: var(--au-ink) !important;
+    text-decoration: none !important;   /* don't let host re-add an underline */
+  }
+  .au-icon-card__btn:focus { outline: none; }   /* the card shows the focus ring */
+  /* stretched link: the whole card is clickable, with no <a> wrapping blocks.
+     The button is in normal flow, so this ::after fills the card directly. */
+  .au-icon-card__btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+</style>
+
+<div class="au-icon-card">
+  <!-- Point src at a real hosted icon (or a /Portals/... path). -->
+  <img class="au-icon-card__icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23000'/%3E%3C/svg%3E" alt="Card icon" />
+  <!-- optional heading -->
+  <h3 class="au-icon-card__title">Program name</h3>
+  <p class="au-icon-card__text">A short supporting line of body copy goes here to describe this program or feature.</p>
+  <a class="au-icon-card__btn" href="#">Learn more</a>
+</div>
+      </script>
+    </article>
+
+    <!-- ===== 2) Callout card ===== -->
+    <article class="dnn-card">
+      <div class="dnn-card__head">
+        <h2>Callout card — full-cover image + full-width button</h2>
+        <button class="copy-btn" type="button">Copy block</button>
+      </div>
+      <div class="dnn-card__body">
+        <div class="dnn-card__preview"></div>
+        <div class="dnn-card__source">
+          <textarea class="dnn-card__code" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+      <script type="text/template">
+<!-- au-callout-card: full-cover image with full-width button. Paste the whole block into an HTML module. -->
+<style type="text/css">
+  .au-callout-card {
+    --au-gold: #FFCC33;
+    --au-gold-hover: #e6b800;
+    --au-ink: #000;
+    --au-surface: #000;
+    --au-band: 44px;
+
+    position: relative;
+    min-height: 250px;         /* default height; matches the other cards */
+    height: 100%;              /* fill an equal-height column when stretched */
+    width: 100%;               /* adapt to the container (e.g. a Bootstrap column) */
+    max-width: 400px;
+    overflow: hidden;
+    background: var(--au-surface);   /* fallback shown until the image loads */
+  }
+  .au-callout-card:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
+  .au-callout-card__img {
+    position: absolute;
+    inset: 0;                  /* fill the card at any height */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  /* :link/:visited and !important so host anchor styles can't clobber the button */
+  .au-callout-card__btn,
+  .au-callout-card__btn:link,
+  .au-callout-card__btn:visited {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;               /* full width of the card */
+    box-sizing: border-box;
+    height: var(--au-band);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    background: var(--au-gold) !important;
+    color: var(--au-ink) !important;
+    font-family: "GI-530", system-ui, Arial, sans-serif !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+    text-transform: uppercase !important;
+    text-align: center;
+    text-decoration: none !important;   /* host adds underlines to links */
+  }
+  .au-callout-card__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
+  .au-callout-card__btn:hover,
+  .au-callout-card__btn:focus {
+    color: var(--au-ink) !important;
+    text-decoration: none !important;   /* don't let host re-add an underline */
+  }
+  .au-callout-card__btn:focus { outline: none; }   /* the card shows the focus ring */
+  /* stretched link: the whole card is clickable, with no <a> wrapping blocks.
+     The button is absolutely positioned, so this ::after would only cover the
+     button — we extend it far upward and let the card's overflow:hidden clip it
+     back to the card box, making the entire card a single click target. */
+  .au-callout-card__btn::after {
+    content: "";
+    position: absolute;
+    top: -1000px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+</style>
+
+<div class="au-callout-card">
+  <!-- Point src at a real hosted photo (or a /Portals/... path). -->
+  <img class="au-callout-card__img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='450' height='235'%3E%3Crect width='450' height='235' fill='%23000'/%3E%3C/svg%3E" alt="Card image" />
+  <a class="au-callout-card__btn" href="#">Learn more</a>
+</div>
+      </script>
+    </article>
+
+    <!-- ===== 3) Sliding-hover card (stretched-link a11y variant) ===== -->
+    <article class="dnn-card">
+      <div class="dnn-card__head">
+        <h2>Sliding-hover card — hover or Tab to focus</h2>
+        <button class="copy-btn" type="button">Copy block</button>
+      </div>
+      <div class="dnn-card__body">
+        <div class="dnn-card__preview"></div>
+        <div class="dnn-card__source">
+          <textarea class="dnn-card__code" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+      <script type="text/template">
+<!-- au-hover-card (stretched-link variant): valid XHTML for DNN — real <h3>, single <a>. Paste the whole block into an HTML module. -->
+<style type="text/css">
+  .au-hover-card {
+    --au-gold: #FFCC33;
+    --au-ink: #000;
+    --au-surface: #000;
+    --au-band: 44px;           /* gold title band == button height on the other cards */
+
+    position: relative;
+    min-height: 250px;         /* default height; matches the other cards */
+    height: 100%;              /* fill an equal-height column when stretched */
+    width: 100%;               /* adapt to the container (e.g. a Bootstrap column) */
+    max-width: 400px;
+    overflow: hidden;          /* clips the panel as it slides */
+    background: var(--au-surface);   /* fallback shown until/if the image loads */
+    color: #ffffff;
+  }
+  /* full-card focus ring (the anchor itself only wraps the CTA text) */
+  .au-hover-card:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
+  .au-hover-card__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+  .au-hover-card__box {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    top: calc(100% - var(--au-band));   /* resting: only the gold band shows */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    text-align: center;        /* revealed description + CTA are centered */
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,.6) 30%);
+    transition: top .5s ease-in-out, padding-top .5s ease-in-out;   /* the slide */
+  }
+  /* slide is triggered by the card (hover) or any focus inside it.
+     padding-top when open keeps the title off the very top edge. */
+  .au-hover-card:hover .au-hover-card__box,
+  .au-hover-card:focus-within .au-hover-card__box { top: 0; padding-top: 1rem; }
+  /* !important so host skins can't recolor/restyle the heading band */
+  .au-hover-card__title {
+    margin: 0 !important;
+    height: var(--au-band);    /* same height as the buttons on the other cards */
+    display: flex;
+    align-items: center;       /* vertically centers the title in the band */
+    justify-content: center;
+    padding: 0 3%;
+    background: var(--au-gold) !important;
+    color: var(--au-ink) !important;       /* beat host heading colors */
+    font-family: "GI-530", system-ui, Arial, sans-serif !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+    text-transform: uppercase !important;
+    transition: background-color .3s ease-in-out, color .3s ease-in-out;
+  }
+  /* ...which fades to transparent as the panel slides up */
+  .au-hover-card:hover .au-hover-card__title,
+  .au-hover-card:focus-within .au-hover-card__title {
+    background-color: transparent !important;
+    color: #ffffff !important;
+    text-shadow: 0 -2px 8px rgba(0,0,0,.6);
+  }
+  .au-hover-card__desc {
+    display: block;
+    padding: 3%;
+    color: #ffffff !important;
+    font-family: "GI-400", system-ui, Arial, sans-serif !important;
+    font-weight: 400 !important;
+    font-size: 16px !important;
+  }
+  /* :link/:visited and !important so host anchor styles can't clobber the CTA */
+  .au-hover-card__cta,
+  .au-hover-card__cta:link,
+  .au-hover-card__cta:visited {
+    display: inline-block;
+    align-self: center;
+    padding: 0 3%;
+    margin-top: .5em;
+    background: transparent !important;   /* host highlights anchors with a bg */
+    color: var(--au-gold) !important;
+    font-family: "GI-530", system-ui, Arial, sans-serif !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+    text-decoration: none !important;   /* host adds underlines to links */
+  }
+  .au-hover-card__cta:hover,
+  .au-hover-card__cta:focus {
+    background: transparent !important;
+    color: var(--au-gold) !important;
+    text-decoration: none !important;   /* don't let host re-add an underline */
+  }
+  .au-hover-card__cta:focus { outline: none; }   /* the card shows the focus ring */
+  /* stretched link: the whole card is clickable, even at rest. The CTA lives
+     inside the absolutely-positioned panel, so inset:0 would only cover the
+     panel — we extend it far upward and let the card's overflow:hidden clip it
+     back to the card box. */
+  .au-hover-card__cta::after {
+    content: "";
+    position: absolute;
+    top: -1000px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+  }
+
+  /* Respect users who ask for reduced motion: show the panel without sliding. */
+  @media (prefers-reduced-motion: reduce) {
+    .au-hover-card__box { transition: none; }
+  }
+</style>
+
+<div class="au-hover-card">
+  <!-- Point src at a real hosted photo (or a /Portals/... path). -->
+  <img class="au-hover-card__img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='250'%3E%3Crect width='400' height='250' fill='%23000'/%3E%3C/svg%3E" alt="Army Fitness Test spotlight image" />
+  <span class="au-hover-card__box">
+    <h3 class="au-hover-card__title">Army University</h3>
+    <span class="au-hover-card__desc">Transforming professional military education to develop leaders with the skills to fight and win our Nation's wars.
+    </span>
+    <a class="au-hover-card__cta" href="#">Visit Site</a>
+  </span>
+</div>
+      </script>
+    </article>
+
+  </div>
+
+<script>
+  // Each card's paste-text lives verbatim in its <script type="text/template">.
+  // We render the live preview AND fill the copy box from that same text, so the
+  // two can never drift. Reading raw script text (not innerHTML) preserves the
+  // self-closing <img ... /> slashes and entities that DNN's XHTML wants.
+  document.querySelectorAll('.dnn-card').forEach(function (card) {
+    var tpl = card.querySelector('script[type="text/template"]');
+    // Strip the single leading/trailing newline from authoring; keep the rest.
+    var src = tpl.textContent.replace(/^\n/, '').replace(/\s+$/, '');
+
+    card.querySelector('.dnn-card__preview').innerHTML = src;
+    var code = card.querySelector('.dnn-card__code');
+    code.value = src;
+
+    var btn = card.querySelector('.copy-btn');
+    btn.addEventListener('click', function () {
+      copyText(code, src);
+      btn.classList.add('is-copied');
+      btn.textContent = 'Copied!';
+      setTimeout(function () {
+        btn.classList.remove('is-copied');
+        btn.textContent = 'Copy block';
+      }, 1400);
+    });
+  });
+
+  // Clipboard API first; fall back to execCommand for file:// where it's blocked.
+  function copyText(textarea, text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () { legacyCopy(textarea); });
+    } else {
+      legacyCopy(textarea);
+    }
+  }
+  function legacyCopy(textarea) {
+    textarea.focus();
+    textarea.select();
+    try { document.execCommand('copy'); } catch (e) { /* user can copy manually */ }
+  }
+</script>
+
+</body>
+</html>
