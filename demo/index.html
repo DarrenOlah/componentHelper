@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Army-Gold "Audiences" Slide-Out — Demo</title>
+
+<style>
+/* =========================================================================
+   ARMY-GOLD "AUDIENCES" SLIDE-OUT
+   Self-contained, zero-JS (pure-CSS checkbox toggle). Army-gold theme.
+   Target: paste the <style> below + the .au-aud markup into a DNN
+   Text/HTML module (via Source view).
+
+   The tab is the left edge of a single drawer: tab + list slide out together.
+
+   DNN survival notes:
+     - Toggle logic is keyed off the input's #id (ids survive sanitizing
+       better than classes), so the slide still works if classes get stripped.
+     - The checkbox carries the "normalCheckBox" class = DNN's documented
+       opt-out so its dnnCheckbox jQuery leaves the real <input> alone.
+     - The carat is drawn with a ::before pseudo-element, NOT a real <span>:
+       DNN's CKEditor strips EMPTY inline elements on save, which was deleting an
+       empty carat <span> (the SVG data URI in CSS survives fine — it was the
+       carrier element that got removed). A pseudo-element has no node to strip.
+     - Markup is XHTML-valid: lowercase tags, quoted attrs, self-closed
+       <input/>, no HTML5 sectioning elements.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   DEMO ONLY — REMOVE BEFORE PASTING INTO DNN.
+   The production Dickinson page already loads the brand font under the family
+   names "GI-530" (display weight) and "GI-400" (regular), which is all the
+   component references. These @font-face rules just let this standalone demo
+   render the real font when opened locally.
+   ------------------------------------------------------------------------- */
+@font-face {
+  font-family: "GI-530";
+  src: url("ARMY_G.I.Fonts_FINAL/woff2/G.I.-530.woff2") format("woff2");
+  font-weight: 530;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "GI-400";
+  src: url("ARMY_G.I.Fonts_FINAL/woff2/G.I.-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+/* ---------------------------- END DEMO ONLY ----------------------------- */
+
+
+/* ====================== COMPONENT (ships to DNN) ======================== */
+
+.au-aud,
+.au-aud * {
+  box-sizing: border-box;
+}
+
+/* Theme tokens */
+.au-aud {
+  --au-gold: #FFCC33;
+  --au-ink: #000;
+  --au-tab-w: 2.5rem;     /* width of the always-visible vertical tab */
+  --au-panel-w: 16rem;    /* width of the sliding list panel          */
+}
+
+/* Visually-hidden but keyboard-focusable checkbox that drives the toggle. */
+.au-aud__cb {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+/* The drawer = tab (left) + list panel (right), sliding as one unit. */
+.au-aud__drawer {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  /* Closed: slid right by the panel width so only the tab shows at the edge. */
+  transform: translate(var(--au-panel-w), -50%);
+  transition: transform 0.3s ease;
+}
+
+/* Always-visible vertical handle on the LEFT edge of the drawer. */
+.au-aud__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+
+  width: var(--au-tab-w);
+  padding: 0.85rem 0.25rem;
+
+  /* Surface colors guarded against host skins. Font/color live on the text
+     span and carat — the tab itself holds no direct text. */
+  background: var(--au-gold) !important;
+  border: 2px solid var(--au-ink) !important;
+  border-right: 0 !important;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+/* "AUDIENCES" rotated to read top-to-bottom down the right edge. */
+.au-aud__text {
+  -webkit-writing-mode: vertical-rl;
+  writing-mode: vertical-rl;
+  text-transform: uppercase !important;
+  white-space: nowrap;
+  /* Flip the vertical text 180deg so it reads bottom-to-top. The carat is a
+     separate ::before on the tab, so it stays put at the top. */
+  transform: rotate(180deg);
+  /* Re-assert against host typography rules that target inline elements. */
+  font-family: "GI-530", system-ui, Arial, sans-serif !important;
+  font-weight: 530 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: 0.02em !important;
+  color: var(--au-ink) !important;
+}
+
+/* Carat: left-pointing chevron (black, round caps), literal-SVG data URI.
+   Rendered as a ::before pseudo-element (no HTML node) so DNN's CKEditor can't
+   strip it the way it strips empty <span>s. Flips right when open via scaleX(-1). */
+.au-aud__tab::before {
+  content: "";
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  background: transparent center / 0.85rem no-repeat;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='10,3 5,8 10,13'/></svg>");
+  transform: scaleX(1);
+  transition: transform 0.3s ease;
+}
+
+/* The list panel (right part of the drawer). */
+.au-aud__panel {
+  width: var(--au-panel-w);
+  background: var(--au-ink) !important;   /* black list section, no borders needed */
+}
+
+.au-aud__list {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0.4rem 0 !important;
+}
+
+/* Links: host skins set their own anchor color (the dark grey seen on the
+   live page), font and underline. Force the component's white/G.I. look.
+   :link/:visited included so visited-link rules can't recolor them either. */
+.au-aud__list a,
+.au-aud__list a:link,
+.au-aud__list a:visited {
+  display: block !important;
+  padding: 0.7rem 1rem !important;
+  color: #fff !important;
+  font-family: "GI-400", system-ui, Arial, sans-serif !important;
+  font-weight: 400 !important;
+  font-size: 0.95rem !important;
+  line-height: 1.2 !important;
+  text-decoration: none !important;
+  text-transform: none !important;
+  background: transparent !important;
+}
+
+.au-aud__list a:hover,
+.au-aud__list a:focus {
+  color: #fff !important;
+  text-decoration: underline !important;
+}
+
+/* ---- OPEN STATE (id-keyed so it survives class stripping) ---- */
+#au-aud-cb:checked ~ #au-aud-drawer {
+  transform: translate(0, -50%);
+}
+#au-aud-cb:checked ~ #au-aud-drawer .au-aud__tab::before {
+  transform: scaleX(-1);
+}
+
+/* Keyboard focus ring on the tab. */
+#au-aud-cb:focus-visible ~ #au-aud-drawer .au-aud__tab {
+  outline: 3px solid var(--au-ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .au-aud__drawer,
+  .au-aud__tab::before {
+    transition: none;
+  }
+}
+/* ==================== END COMPONENT (ships to DNN) ====================== */
+</style>
+</head>
+<body>
+
+<div class="demo-page">
+  <h1>Army-Gold &ldquo;Audiences&rdquo; Slide-Out &mdash; Demo</h1>
+  <p>
+    The gold tab is pinned to the right edge. Click it (or focus it and press
+    Space) to slide the audience menu out &mdash; the tab is the left edge of the
+    drawer and slides with the list. This page chrome is just demo scaffolding;
+    only the <code>.au-aud</code> block and its CSS ship to the DNN Text/HTML
+    module.
+  </p>
+</div>
+
+<!-- ===== Paste THIS block (and the component CSS above) into DNN ===== -->
+<div class="au-aud" id="au-aud">
+  <input class="au-aud__cb normalCheckBox" type="checkbox" id="au-aud-cb" />
+  <div class="au-aud__drawer" id="au-aud-drawer">
+    <label class="au-aud__tab" for="au-aud-cb" aria-label="Audiences menu">
+      <span class="au-aud__text">Audiences</span>
+    </label>
+    <div class="au-aud__panel">
+      <ul class="au-aud__list">
+        <li><a href="http://www.dickinson.edu/homepage/298/current_students">Current Students</a></li>
+        <li><a href="http://www.dickinson.edu/homepage/296/current_parents">Current Parents</a></li>
+        <li><a href="https://www.dickinson.edu/homepage/287/admissions">Prospective Students</a></li>
+        <li><a href="http://www.dickinson.edu/homepage/297/parents_of_prospective_students">Parents of Prospective Students</a></li>
+        <li><a href="http://www.dickinson.edu/homepage/299/faculty_and_staff">Faculty and Staff</a></li>
+        <li><a href="http://www.dickinson.edu/homepage/1047/alumni_homepage">Alumni</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+<!-- ===== end paste block ===== -->
+
+</body>
+</html>
