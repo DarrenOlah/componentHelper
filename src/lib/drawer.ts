@@ -97,6 +97,28 @@ function clampPercent(n: number, fallback: number): number {
   return parseFloat(v.toFixed(2))
 }
 
+// How the flyout is anchored to the chosen vertical point. In the middle band we
+// center it (-50% Y). Within EDGE_BAND% of either edge we switch the anchor so
+// the tab grows *inward* instead of being centered — that way it can never be
+// clipped off the top or bottom of the viewport, on any screen size, with no JS
+// and no need to know the tab's height. 'top' pins the flyout's top edge to the
+// point; 'bottom' pins its bottom edge. See vposTranslateY for the Y offsets.
+export const VPOS_EDGE_BAND = 19
+export type VposAnchor = 'top' | 'center' | 'bottom'
+export function vposAnchor(vposPercent: number): VposAnchor {
+  const pct = clampPercent(vposPercent, DEFAULT_VPOS_PERCENT)
+  if (pct <= VPOS_EDGE_BAND) return 'top'
+  if (pct >= 100 - VPOS_EDGE_BAND) return 'bottom'
+  return 'center'
+}
+
+// Y component of the flyout transform for each anchor. top → 0 (top edge at the
+// point, grows down), center → -50% (centered), bottom → -100% (bottom edge at
+// the point, grows up). The X component is unchanged across all three.
+function vposTranslateY(anchor: VposAnchor): string {
+  return anchor === 'top' ? '0' : anchor === 'bottom' ? '-100%' : '-50%'
+}
+
 // Left-pointing chevron carat as an SVG data URI, stroked in the given color.
 // Lives in the dynamic block (not the static CSS) so it follows the tab text
 // color — otherwise a black carat vanishes on a dark tab (e.g. Army Black).
@@ -116,9 +138,12 @@ function buildDynamicCss(input: GenerateDrawerInput): string {
   const pct = clampPercent(input.vposPercent, DEFAULT_VPOS_PERCENT)
   // The X slide moves the flyout right by (its own width − tab width), leaving
   // exactly the tab visible — independent of panel width, which is what lets the
-  // panel auto-fit its content. The -50% Y centers it on the chosen percentage.
-  const closed = 'translate(calc(100% - var(--au-tab-w)), -50%)'
-  const open = 'translate(0, -50%)'
+  // panel auto-fit its content. The Y component centers (-50%) the flyout on the
+  // chosen percentage in the middle band, and edge-anchors it (0 / -100%) near
+  // the top/bottom so the tab can't be clipped off-screen on short viewports.
+  const tY = vposTranslateY(vposAnchor(input.vposPercent))
+  const closed = `translate(calc(100% - var(--au-tab-w)), ${tY})`
+  const open = `translate(0, ${tY})`
 
   const isFixed = input.panelWidthMode === 'fixed'
   const panelVar = isFixed

@@ -4,6 +4,7 @@ import {
   safeHref,
   escapeHtmlAttr,
   escapeHtmlText,
+  vposAnchor,
   type GenerateDrawerInput,
 } from './drawer'
 
@@ -163,6 +164,42 @@ describe('generateDrawerHtml — vertical position', () => {
   it('clamps the percentage to 0–100', () => {
     expect(gen({ vposPercent: 150 })).toContain('top: 100%;')
     expect(gen({ vposPercent: -10 })).toContain('top: 0%;')
+  })
+
+  it('edge-anchors to the top (Y 0) near the top edge', () => {
+    const out = gen({ vposPercent: 5 })
+    expect(out).toContain('top: 5%;')
+    expect(out).toContain('transform: translate(calc(100% - var(--au-tab-w)), 0);')
+    expect(out).toContain('transform: translate(0, 0);')
+  })
+
+  it('edge-anchors to the bottom (Y -100%) near the bottom edge', () => {
+    const out = gen({ vposPercent: 95 })
+    expect(out).toContain('top: 95%;')
+    expect(out).toContain('transform: translate(calc(100% - var(--au-tab-w)), -100%);')
+    expect(out).toContain('transform: translate(0, -100%);')
+  })
+
+  it('keeps centering (Y -50%) through the middle band', () => {
+    expect(gen({ vposPercent: 33.33 })).toContain('transform: translate(0, -50%);')
+    expect(gen({ vposPercent: 66.67 })).toContain('transform: translate(0, -50%);')
+  })
+})
+
+describe('vposAnchor', () => {
+  it('reports top / center / bottom by band', () => {
+    expect(vposAnchor(0)).toBe('top')
+    expect(vposAnchor(19)).toBe('top')
+    expect(vposAnchor(19.5)).toBe('center')
+    expect(vposAnchor(50)).toBe('center')
+    expect(vposAnchor(80.5)).toBe('center')
+    expect(vposAnchor(81)).toBe('bottom')
+    expect(vposAnchor(100)).toBe('bottom')
+  })
+
+  it('treats out-of-range values as their clamped edge', () => {
+    expect(vposAnchor(-10)).toBe('top')
+    expect(vposAnchor(150)).toBe('bottom')
   })
 })
 
