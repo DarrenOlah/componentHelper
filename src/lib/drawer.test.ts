@@ -14,8 +14,11 @@ const baseInput: GenerateDrawerInput = {
     { href: 'https://example.com/b', text: 'Beta' },
   ],
   tabColor: '#FFCC33',
-  inkColor: '#000000',
-  vpos: 'middle',
+  tabTextColor: '#000000',
+  borderColor: '#000000',
+  panelColor: '#000000',
+  linkColor: '#FFFFFF',
+  vposPercent: 50,
   tabWidthRem: 2.5,
   panelWidthMode: 'auto',
   panelWidthRem: 16,
@@ -144,34 +147,56 @@ describe('generateDrawerHtml — panel width', () => {
 })
 
 describe('generateDrawerHtml — vertical position', () => {
-  it('middle anchors top:50% with -50% transforms', () => {
-    const out = gen({ vpos: 'middle' })
+  it('centers the flyout on the percentage with -50% Y transforms', () => {
+    const out = gen({ vposPercent: 50 })
     expect(out).toContain('top: 50%;')
     expect(out).toContain('transform: translate(calc(100% - var(--au-tab-w)), -50%);')
     expect(out).toContain('transform: translate(0, -50%);')
   })
 
-  it('top anchors top:0 with X-only transforms, no -50%', () => {
-    const out = gen({ vpos: 'top' })
-    expect(out).toContain('top: 0;')
-    expect(out).toContain('transform: translateX(calc(100% - var(--au-tab-w)));')
-    expect(out).toContain('transform: translateX(0);')
-    expect(out).not.toContain('-50%')
+  it('applies a custom percentage to both the checkbox and flyout', () => {
+    const out = gen({ vposPercent: 33.33 })
+    expect(out).toContain('.au-drawer__cb { top: 33.33%; }')
+    expect(out).toContain('top: 33.33%;')
   })
 
-  it('bottom anchors bottom:0 with X-only transforms, no -50%', () => {
-    const out = gen({ vpos: 'bottom' })
-    expect(out).toContain('bottom: 0;')
-    expect(out).toContain('transform: translateX(calc(100% - var(--au-tab-w)));')
-    expect(out).not.toContain('-50%')
+  it('clamps the percentage to 0–100', () => {
+    expect(gen({ vposPercent: 150 })).toContain('top: 100%;')
+    expect(gen({ vposPercent: -10 })).toContain('top: 0%;')
+  })
+})
+
+describe('generateDrawerHtml — forceOpen (preview only)', () => {
+  it('checks the toggle when forceOpen is set', () => {
+    const out = generateDrawerHtml(baseInput, { forceOpen: true })
+    expect(out).toContain('id="au-drawer-cb" checked="checked"')
+  })
+
+  it('leaves the toggle unchecked by default (copy output)', () => {
+    expect(gen()).toContain('id="au-drawer-cb" />')
+    expect(gen()).not.toContain('checked="checked"')
   })
 })
 
 describe('generateDrawerHtml — colors', () => {
-  it('substitutes valid hex colors', () => {
-    const out = gen({ tabColor: '#123abc', inkColor: '#fff' })
+  it('substitutes valid hex colors into decoupled vars', () => {
+    const out = gen({
+      tabColor: '#123abc',
+      tabTextColor: '#fff',
+      borderColor: '#111',
+      panelColor: '#222',
+      linkColor: '#abcdef',
+    })
     expect(out).toContain('--au-tab: #123abc;')
-    expect(out).toContain('--au-ink: #fff;')
+    expect(out).toContain('--au-tab-ink: #fff;')
+    expect(out).toContain('--au-border: #111;')
+    expect(out).toContain('--au-panel: #222;')
+    expect(out).toContain('--au-link: #abcdef;')
+  })
+
+  it('colors the carat to match the tab text color', () => {
+    const out = gen({ tabTextColor: '#ffffff' })
+    expect(out).toContain("stroke='%23ffffff'")
   })
 
   it('falls back on invalid color and does not inject raw value', () => {

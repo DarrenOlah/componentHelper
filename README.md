@@ -15,9 +15,13 @@ the screen that slides a panel of links into view when clicked. You provide:
 
 - a **tab label**,
 - an arbitrary list of **links** (add / remove / reorder),
-- **colors** (tab/background and ink/border/panel),
-- **vertical position** (top / middle / bottom),
+- **colors** (tab/background and ink/border/panel), via an Army-brand palette plus custom hex,
+- **vertical position** as a percentage (presets 1/3, 1/2, 2/3 or a custom %; never flush to the top/bottom edge),
 - **widths** — fixed, or **auto-fit to the longest link**, with an optional max-width cap.
+
+The live preview can be pinned **always expanded** and opened **fullscreen** while
+iterating, renders in the real G.I. brand font, and warns when the tab is taller
+than the drawer's links.
 
 The generated snippet is hardened for DNN's CKEditor (id-keyed toggle that
 survives class-stripping, `normalCheckBox` opt-out, an SVG carat drawn as a
@@ -47,9 +51,11 @@ src/
     drawer.test.ts         unit tests for the generator
   components/
     DrawerTool.tsx         the Drawer tool UI
+    ColorField.tsx         Army-brand color palette + custom hex picker
     SectionLabel.tsx       shared numbered section header
   templates/
     drawerCss.ts           static (input-independent) drawer CSS as a string
+public/fonts/              brand G.I. woff2 fonts (preview only; not in output)
 demo/                      the original standalone HTML demo + brand fonts
 ```
 
