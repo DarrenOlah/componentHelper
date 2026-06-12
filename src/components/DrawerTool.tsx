@@ -1,16 +1,20 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, type SyntheticEvent } from 'react'
 import {
   generateDrawerHtml,
   generateDrawerPreviewHtml,
   DEFAULT_TAB_COLOR,
-  DEFAULT_INK_COLOR,
+  DEFAULT_TAB_TEXT_COLOR,
+  DEFAULT_BORDER_COLOR,
+  DEFAULT_PANEL_COLOR,
+  DEFAULT_LINK_COLOR,
   DEFAULT_TAB_WIDTH_REM,
   DEFAULT_PANEL_WIDTH_REM,
-  type VPos,
+  DEFAULT_VPOS_PERCENT,
   type PanelWidthMode,
   type GenerateDrawerInput,
 } from '../lib/drawer'
 import { SectionLabel } from './SectionLabel'
+import { ColorField, tabTextFor } from './ColorField'
 
 const LABEL_STORAGE_KEY = 'componentHelper-drawer-label'
 
@@ -24,8 +28,11 @@ interface DrawerState {
   label: string
   links: DrawerLink[]
   tabColor: string
-  inkColor: string
-  vpos: VPos
+  tabTextColor: string
+  borderColor: string
+  panelColor: string
+  linkColor: string
+  vposPercent: number
   tabWidthRem: number
   panelWidthMode: PanelWidthMode
   panelWidthRem: number
@@ -43,8 +50,11 @@ function initialState(): DrawerState {
     label: localStorage.getItem(LABEL_STORAGE_KEY) ?? 'Audiences',
     links: [makeLink(), makeLink(), makeLink()],
     tabColor: DEFAULT_TAB_COLOR,
-    inkColor: DEFAULT_INK_COLOR,
-    vpos: 'middle',
+    tabTextColor: DEFAULT_TAB_TEXT_COLOR,
+    borderColor: DEFAULT_BORDER_COLOR,
+    panelColor: DEFAULT_PANEL_COLOR,
+    linkColor: DEFAULT_LINK_COLOR,
+    vposPercent: DEFAULT_VPOS_PERCENT,
     tabWidthRem: DEFAULT_TAB_WIDTH_REM,
     panelWidthMode: 'auto',
     panelWidthRem: DEFAULT_PANEL_WIDTH_REM,
@@ -55,15 +65,10 @@ function initialState(): DrawerState {
 const inputCls =
   'w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500'
 
-const COLOR_FIELDS: { key: 'tabColor' | 'inkColor'; label: string }[] = [
-  { key: 'tabColor', label: 'Tab / background' },
-  { key: 'inkColor', label: 'Ink / border / panel' },
-]
-
-const VPOS_OPTIONS: { id: VPos; label: string }[] = [
-  { id: 'top', label: 'Top' },
-  { id: 'middle', label: 'Middle' },
-  { id: 'bottom', label: 'Bottom' },
+const VPOS_PRESETS: { label: string; value: number }[] = [
+  { label: '1/3', value: 33.33 },
+  { label: '1/2', value: 50 },
+  { label: '2/3', value: 66.67 },
 ]
 
 const PANEL_WIDTH_MODES: { id: PanelWidthMode; label: string }[] = [
@@ -74,13 +79,17 @@ const PANEL_WIDTH_MODES: { id: PanelWidthMode; label: string }[] = [
 export function DrawerTool() {
   const [state, setState] = useState<DrawerState>(initialState)
   const [copied, setCopied] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [tabOverflow, setTabOverflow] = useState(false)
 
-  const { label, links, tabColor, inkColor, vpos, tabWidthRem, panelWidthMode, panelWidthRem, panelMaxWidthRem } = state
+  const { label, links, tabColor, tabTextColor, borderColor, panelColor, linkColor, vposPercent, tabWidthRem, panelWidthMode, panelWidthRem, panelMaxWidthRem } = state
 
   const hasLabel = label.trim() !== ''
   const validLinks = links.filter(l => l.href.trim() !== '' && l.text.trim() !== '')
   const hasLink = validLinks.length > 0
   const isComplete = hasLabel && hasLink
+  const isCustomVpos = !VPOS_PRESETS.some(p => p.value === vposPercent)
 
   // Shared input for both generators. Links with empty fields are filtered by
   // the pure generator, so the preview updates as the user types.
@@ -89,18 +98,34 @@ export function DrawerTool() {
       label: label.trim() || 'Audiences',
       links: links.map(l => ({ href: l.href, text: l.text })),
       tabColor,
-      inkColor,
-      vpos,
+      tabTextColor,
+      borderColor,
+      panelColor,
+      linkColor,
+      vposPercent,
       tabWidthRem,
       panelWidthMode,
       panelWidthRem,
       panelMaxWidthRem,
     }),
-    [label, links, tabColor, inkColor, vpos, tabWidthRem, panelWidthMode, panelWidthRem, panelMaxWidthRem],
+    [label, links, tabColor, tabTextColor, borderColor, panelColor, linkColor, vposPercent, tabWidthRem, panelWidthMode, panelWidthRem, panelMaxWidthRem],
   )
 
-  const previewHtml = useMemo(() => generateDrawerPreviewHtml(genInput), [genInput])
+  const previewHtml = useMemo(
+    () => generateDrawerPreviewHtml(genInput, { forceOpen: previewOpen }),
+    [genInput, previewOpen],
+  )
   const html = useMemo(() => (isComplete ? generateDrawerHtml(genInput) : ''), [isComplete, genInput])
+
+  // Close the fullscreen overlay on Escape.
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isFullscreen])
 
   // ---- handlers ----
   const handleLabel = (val: string) => {
@@ -142,11 +167,54 @@ export function DrawerTool() {
   const setMaxWidthEnabled = (enabled: boolean) =>
     setState(s => ({ ...s, panelMaxWidthRem: enabled ? 24 : null }))
 
-  return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+  // Picking a tab background also sets its brand-paired text color (for contrast).
+  // A custom (non-preset) value leaves the current text color untouched.
+  const setTabColor = (v: string) => {
+    const paired = tabTextFor(v)
+    setState(s => ({ ...s, tabColor: v, ...(paired ? { tabTextColor: paired } : {}) }))
+  }
 
-      {/* ── LEFT: Inputs ── */}
-      <div className="w-full lg:w-80 xl:w-96 shrink-0 space-y-4">
+  const setColor = (key: 'tabTextColor' | 'borderColor' | 'panelColor' | 'linkColor') => (v: string) =>
+    setState(s => ({ ...s, [key]: v }))
+
+  // Measure the rendered preview (same-origin iframe) and flag when the rotated
+  // tab is taller than the panel content, so it will stick out past the panel.
+  const handlePreviewLoad = (e: SyntheticEvent<HTMLIFrameElement>) => {
+    const doc = e.currentTarget.contentDocument
+    if (!doc) return
+    const measure = () => {
+      const tab = doc.querySelector<HTMLElement>('.au-drawer__tab')
+      const panel = doc.querySelector<HTMLElement>('.au-drawer__panel')
+      if (!tab || !panel) {
+        setTabOverflow(false)
+        return
+      }
+      setTabOverflow(tab.getBoundingClientRect().height > panel.getBoundingClientRect().height + 1)
+    }
+    // Wait for the web fonts to load — they change the rotated tab's height.
+    if (doc.fonts?.ready) doc.fonts.ready.then(measure).catch(measure)
+    else measure()
+  }
+
+  const showOverflowWarning = hasLink && tabOverflow
+
+  // The iframe is reused inline and in the fullscreen overlay.
+  const previewIframe = (className: string, title: string) => (
+    <iframe
+      key={previewHtml}
+      srcDoc={previewHtml}
+      onLoad={handlePreviewLoad}
+      className={`border-0 ${className}`}
+      sandbox="allow-same-origin"
+      title={title}
+    />
+  )
+
+  return (
+    <div className="flex flex-col xl:flex-row gap-4 items-start">
+
+      {/* ── COLUMN 1: Tab label + Links ── */}
+      <div className="w-full xl:w-80 shrink-0 space-y-4">
 
         {/* Section 1: Label */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -227,45 +295,40 @@ export function DrawerTool() {
           </button>
         </div>
 
+      </div>{/* ── END COLUMN 1 ── */}
+
+      {/* ── COLUMN 2: Colors + Vertical position + Widths ── */}
+      <div className="w-full xl:w-80 shrink-0 space-y-4">
+
         {/* Section 3: Colors */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <SectionLabel number={3} title="Colors" done={true} />
-          {COLOR_FIELDS.map(({ key, label: lbl }) => {
-            const value = state[key]
-            return (
-            <div key={key} className="mb-3 last:mb-0">
-              <label className="block text-xs font-medium text-gray-700 mb-1">{lbl}</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={value}
-                  onChange={e => setState(s => ({ ...s, [key]: e.target.value }))}
-                  className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
-                  aria-label={`${lbl} swatch`}
-                />
-                <input
-                  type="text"
-                  value={value}
-                  onChange={e => setState(s => ({ ...s, [key]: e.target.value }))}
-                  className={`${inputCls} font-mono`}
-                />
-              </div>
-            </div>
-            )
-          })}
+          <ColorField label="Tab / background" value={tabColor} onChange={setTabColor} defaultValue={DEFAULT_TAB_COLOR} />
+          <ColorField label="Tab text" value={tabTextColor} onChange={setColor('tabTextColor')} defaultValue={DEFAULT_TAB_TEXT_COLOR} />
+
+          {/* Border / panel / link colors collapse by default — most users keep
+              the brand defaults. No box, so the fields align with the others. */}
+          <details className="mt-1">
+            <summary className="cursor-pointer text-xs font-medium text-gray-600 select-none mb-3">
+              Advanced colors
+            </summary>
+            <ColorField label="Border" value={borderColor} onChange={setColor('borderColor')} defaultValue={DEFAULT_BORDER_COLOR} />
+            <ColorField label="Panel background" value={panelColor} onChange={setColor('panelColor')} defaultValue={DEFAULT_PANEL_COLOR} />
+            <ColorField label="Link text" value={linkColor} onChange={setColor('linkColor')} defaultValue={DEFAULT_LINK_COLOR} />
+          </details>
         </div>
 
         {/* Section 4: Vertical position */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <SectionLabel number={4} title="Vertical position" done={true} />
           <div className="flex gap-2">
-            {VPOS_OPTIONS.map(({ id, label: lbl }) => (
+            {VPOS_PRESETS.map(({ label: lbl, value }) => (
               <button
-                key={id}
+                key={value}
                 type="button"
-                onClick={() => setState(s => ({ ...s, vpos: id }))}
+                onClick={() => setState(s => ({ ...s, vposPercent: value }))}
                 className={`flex-1 px-3 py-1.5 rounded-lg border-2 text-xs font-medium transition-colors
-                  ${vpos === id
+                  ${vposPercent === value
                     ? 'border-blue-600 bg-blue-50 text-blue-700'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'}`}
               >
@@ -273,7 +336,21 @@ export function DrawerTool() {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-gray-400">Where the tab sits on the right edge.</p>
+          <label className="block text-xs font-medium text-gray-700 mb-1 mt-3">
+            Custom position (% from top)
+            {isCustomVpos && <span className="ml-1 text-blue-600 font-normal">— active</span>}
+          </label>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            max="100"
+            value={vposPercent}
+            onChange={e => setState(s => ({ ...s, vposPercent: parseFloat(e.target.value) }))}
+            className={inputCls}
+            aria-label="Custom vertical position percentage"
+          />
+          <p className="mt-2 text-xs text-gray-400">Centers the tab on this point. Never flush to the top or bottom edge.</p>
         </div>
 
         {/* Section 5: Widths */}
@@ -353,71 +430,104 @@ export function DrawerTool() {
           </div>
         </div>
 
-      </div>
+      </div>{/* ── END COLUMN 2 ── */}
 
-      {/* ── RIGHT: preview + HTML ── */}
-      <div className="w-full flex-1 min-w-0 flex flex-col xl:flex-row gap-4 items-start">
-
-        {/* ── MIDDLE: Live preview ── */}
-        <div className="w-full xl:flex-1 min-w-0">
-          <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
-            <div className="bg-gray-100 px-3 py-1.5 border-b border-gray-200 flex items-center gap-3">
-              <span className="text-xs text-gray-500 font-medium">Live preview</span>
-              <span className="text-[10px] text-gray-400">tab pinned to the right edge</span>
-            </div>
-            <iframe
-              key={previewHtml}
-              srcDoc={previewHtml}
-              className="block w-full bg-slate-100"
-              style={{ height: '420px', maxHeight: '70vh', border: 0 }}
-              sandbox="allow-same-origin"
-              title="Drawer live preview"
-            />
+      {/* ── COLUMN 3: Live preview ── */}
+      <div className="w-full xl:flex-1 min-w-0">
+        <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+          <div className="bg-gray-100 px-3 py-1.5 border-b border-gray-200 flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-500 font-medium">Live preview</span>
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-600">
+              <input
+                type="checkbox"
+                checked={previewOpen}
+                onChange={e => setPreviewOpen(e.target.checked)}
+              />
+              Always expanded
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(true)}
+              className="ml-auto text-[11px] font-medium px-2 py-0.5 rounded border border-gray-300 text-gray-600 hover:bg-white"
+            >
+              ⛶ Fullscreen
+            </button>
           </div>
-        </div>{/* ── END MIDDLE ── */}
+          {previewIframe(
+            'block w-full h-[420px] max-h-[70vh] bg-slate-100',
+            'Drawer live preview',
+          )}
+          {showOverflowWarning && (
+            <div className="px-3 py-1.5 bg-amber-50 border-t border-amber-200 text-xs text-amber-700 flex items-center gap-1.5">
+              <span>⚠</span>
+              <span>The tab label is taller than the drawer's links — the tab will stick out past the panel. Add links or shorten the label.</span>
+            </div>
+          )}
+        </div>
+      </div>{/* ── END COLUMN 3 ── */}
 
-        {/* ── RIGHT: HTML output ── */}
-        <div className="w-full xl:w-96 shrink-0">
-          <div className={`bg-white rounded-xl shadow-sm border p-4 transition-opacity
-            ${isComplete ? 'border-gray-100 opacity-100' : 'border-gray-100 opacity-50 pointer-events-none'}`}>
-            <SectionLabel number={6} title="Your HTML code" done={false} />
+      {/* ── COLUMN 4: HTML output ── */}
+      <div className="w-full xl:w-96 shrink-0">
+        <div className={`bg-white rounded-xl shadow-sm border p-4 transition-opacity
+          ${isComplete ? 'border-gray-100 opacity-100' : 'border-gray-100 opacity-50 pointer-events-none'}`}>
+          <SectionLabel number={6} title="Your HTML code" done={false} />
 
-            {isComplete ? (
-              <>
-                <p className="text-xs text-gray-500 mb-3">Copy and paste into your DNN Text/HTML module.</p>
-                <div className="bg-gray-900 rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
-                    <span className="text-xs text-gray-400 font-medium">HTML</span>
-                    <button
-                      onClick={handleCopy}
-                      className={`text-xs font-medium px-3 py-1 rounded-md transition-colors
-                        ${copied ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
-                    >
-                      {copied ? '✓ Copied!' : 'Copy to clipboard'}
-                    </button>
-                  </div>
-                  <pre className="p-3 text-xs text-green-300 overflow-x-auto overflow-y-auto whitespace-pre font-mono leading-relaxed" style={{ maxHeight: '500px' }}>
-                    {html}
-                  </pre>
-                </div>
-                <div className="mt-3 flex justify-end">
+          {isComplete ? (
+            <>
+              <p className="text-xs text-gray-500 mb-3">Copy and paste into your DNN Text/HTML module.</p>
+              <div className="bg-gray-900 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
+                  <span className="text-xs text-gray-400 font-medium">HTML</span>
                   <button
-                    onClick={handleReset}
-                    className="px-4 py-1.5 bg-gray-800 text-white rounded-lg font-medium text-xs hover:bg-gray-700 transition-colors"
+                    onClick={handleCopy}
+                    className={`text-xs font-medium px-3 py-1 rounded-md transition-colors
+                      ${copied ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
                   >
-                    Start over
+                    {copied ? '✓ Copied!' : 'Copy to clipboard'}
                   </button>
                 </div>
-              </>
-            ) : (
-              <p className="text-xs text-gray-400">
-                Enter a tab label and at least one link (text + URL) to generate the code.
-              </p>
-            )}
-          </div>
-        </div>{/* ── END RIGHT ── */}
+                <pre className="p-3 text-xs text-green-300 overflow-x-auto overflow-y-auto whitespace-pre font-mono leading-relaxed" style={{ maxHeight: '500px' }}>
+                  {html}
+                </pre>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={handleReset}
+                  className="px-4 py-1.5 bg-gray-800 text-white rounded-lg font-medium text-xs hover:bg-gray-700 transition-colors"
+                >
+                  Start over
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-gray-400">
+              Enter a tab label and at least one link (text + URL) to generate the code.
+            </p>
+          )}
+        </div>
+      </div>{/* ── END COLUMN 4 ── */}
 
-      </div>
+      {/* ── Fullscreen preview overlay ── */}
+      {isFullscreen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex flex-col p-4"
+          onClick={() => setIsFullscreen(false)}
+        >
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              className="text-sm font-medium px-3 py-1 rounded bg-white text-gray-800 hover:bg-gray-100"
+            >
+              ✕ Close
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-slate-100" onClick={e => e.stopPropagation()}>
+            {previewIframe('block w-full h-full bg-slate-100', 'Drawer fullscreen preview')}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

@@ -23,8 +23,15 @@ The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
   exported string. **Why a `.ts` string, not `.css?raw`:** Vite's CSS pipeline
   intercepts the `.css` extension and `?raw` returns empty under Vitest. Keep
   static CSS here; generate the per-instance rules in `drawer.ts`.
-- `src/components/DrawerTool.tsx` — the tool UI (left inputs / middle iframe
-  preview / right gated HTML output + copy + reset).
+- `src/components/DrawerTool.tsx` — the tool UI, laid out in four columns:
+  (1) label + links, (2) colors + vertical position + widths, (3) live iframe
+  preview (always-expanded toggle, fullscreen, tab-overflow warning), (4) gated
+  HTML output + copy + reset.
+- `src/components/ColorField.tsx` — reusable Army-brand color palette (preset
+  swatches + custom hex + native picker), used for both drawer colors.
+- `public/fonts/` — brand G.I. `woff2` fonts, served at `base`. Loaded via
+  `@font-face` **into the preview iframe only** (`generateDrawerPreviewHtml`), so
+  the preview renders in the real typeface; the copy output stays `@font-face`-free.
 - `demo/` — the original standalone HTML demo and brand fonts. Reference only.
 
 ## Conventions

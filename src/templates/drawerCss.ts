@@ -56,7 +56,7 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
 
   /* Surface colors guarded against host skins. */
   background: var(--au-tab) !important;
-  border: 2px solid var(--au-ink) !important;
+  border: 2px solid var(--au-border) !important;
   border-right: 0 !important;
 
   cursor: pointer;
@@ -77,12 +77,13 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
   font-weight: 530 !important;
   font-size: 0.95rem !important;
   letter-spacing: 0.02em !important;
-  color: var(--au-ink) !important;
+  color: var(--au-tab-ink) !important;
 }
 
-/* Carat: left-pointing chevron (black, round caps), literal-SVG data URI.
-   Rendered as a ::before pseudo-element (no HTML node) so DNN's CKEditor can't
-   strip it. Flips right when open via scaleX(-1). */
+/* Carat: left-pointing chevron (round caps) drawn as a ::before pseudo-element
+   (no HTML node) so DNN's CKEditor can't strip it. The colored SVG data URI is
+   emitted in the generated block so the carat follows the tab text color (a
+   black carat would vanish on a dark tab). Flips right when open via scaleX(-1). */
 .au-drawer__tab::before {
   content: "";
   display: block;
@@ -90,7 +91,6 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
   height: 1rem;
   flex: 0 0 auto;
   background: transparent center / 0.85rem no-repeat;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='10,3 5,8 10,13'/></svg>");
   transform: scaleX(1);
   transition: transform 0.3s ease;
 }
@@ -98,7 +98,7 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
 /* The list panel (right part of the flyout). Width is set in the generated
    block (auto fit-content vs fixed rem). */
 .au-drawer__panel {
-  background: var(--au-ink) !important;
+  background: var(--au-panel) !important;
 }
 
 .au-drawer__list {
@@ -114,7 +114,7 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
 .au-drawer__list a:visited {
   display: block !important;
   padding: 0.7rem 1rem !important;
-  color: #fff !important;
+  color: var(--au-link) !important;
   font-family: "GI-400", system-ui, Arial, sans-serif !important;
   font-weight: 400 !important;
   font-size: 0.95rem !important;
@@ -126,7 +126,7 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
 
 .au-drawer__list a:hover,
 .au-drawer__list a:focus {
-  color: #fff !important;
+  color: var(--au-link) !important;
   text-decoration: underline !important;
 }
 
@@ -138,7 +138,7 @@ export const DRAWER_STATIC_CSS = `.au-drawer,
 
 /* Keyboard focus ring on the tab. */
 #au-drawer-cb:focus-visible ~ #au-drawer-flyout .au-drawer__tab {
-  outline: 3px solid var(--au-ink);
+  outline: 3px solid var(--au-tab-ink);
   outline-offset: 2px;
 }
 
