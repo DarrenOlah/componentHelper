@@ -10,6 +10,7 @@ import {
   DEFAULT_TAB_WIDTH_REM,
   DEFAULT_PANEL_WIDTH_REM,
   DEFAULT_VPOS_PERCENT,
+  vposAnchor,
   type PanelWidthMode,
   type GenerateDrawerInput,
 } from '../lib/drawer'
@@ -90,6 +91,9 @@ export function DrawerTool() {
   const hasLink = validLinks.length > 0
   const isComplete = hasLabel && hasLink
   const isCustomVpos = !VPOS_PRESETS.some(p => p.value === vposPercent)
+  // Near the top/bottom edge the generator pins the tab to that edge instead of
+  // centering it, so it can't be clipped off-screen on short viewports.
+  const anchor = vposAnchor(vposPercent)
 
   // Shared input for both generators. Links with empty fields are filtered by
   // the pure generator, so the preview updates as the user types.
@@ -351,6 +355,15 @@ export function DrawerTool() {
             aria-label="Custom vertical position percentage"
           />
           <p className="mt-2 text-xs text-gray-400">Centers the tab on this point. Never flush to the top or bottom edge.</p>
+          {anchor !== 'center' && (
+            <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-xs text-amber-700 flex items-start gap-1.5">
+              <span>⚠</span>
+              <span>
+                This is close to the {anchor} edge, so the tab is pinned to the {anchor} (rather than
+                centered on the point) to keep it fully on-screen on smaller devices.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Section 5: Widths */}
