@@ -2,10 +2,10 @@ import type { ComponentType } from 'react'
 import { DrawerTool } from './components/DrawerTool'
 import { CardsTool } from './components/CardsTool'
 import { useHashRoute, type Route } from './lib/useHashRoute'
-import { REPO_URL } from './lib/config'
+import { REPO_URL, HERO_IMAGE_URL, HERO_VIDEO_URL, SIDENAV_URL } from './lib/config'
 
 // One entry per tool: nav label, page heading/blurb, and the component to render.
-// Add a tool by extending Route (useHashRoute) and adding an entry here + to NAV_ORDER.
+// Add a tool by extending Route (useHashRoute) and adding an entry here + to NAV_ITEMS.
 const TOOLS: Record<Route, { label: string; blurb: string; Component: ComponentType }> = {
   drawer: {
     label: 'Drawer Helper',
@@ -18,7 +18,21 @@ const TOOLS: Record<Route, { label: string; blurb: string; Component: ComponentT
     Component: CardsTool,
   },
 }
-const NAV_ORDER: Route[] = ['drawer', 'cards']
+
+// Shared cross-app menu — kept in the same order across every sister helper
+// (Hero Image | Hero Video | Sidenav | Drawer | Cards). This app owns the
+// drawer/cards routes; the rest link out to the sibling apps.
+type NavItem =
+  | { kind: 'route'; id: Route; label: string }
+  | { kind: 'external'; id: string; label: string; href: string }
+
+const NAV_ITEMS: NavItem[] = [
+  { kind: 'external', id: 'image', label: 'Hero Image', href: HERO_IMAGE_URL },
+  { kind: 'external', id: 'video', label: 'Hero Video', href: HERO_VIDEO_URL },
+  { kind: 'external', id: 'sidenav', label: 'Sidenav', href: SIDENAV_URL },
+  { kind: 'route', id: 'drawer', label: 'Drawer' },
+  { kind: 'route', id: 'cards', label: 'Cards' },
+]
 
 export default function App() {
   const [route] = useHashRoute()
@@ -28,15 +42,17 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">
       <div className="flex-1 w-full py-2 px-4">
 
-        {/* Nav: one entry per tool */}
+        {/* Nav: Hero Image | Hero Video | Sidenav | Drawer | Cards */}
         <nav className="mb-4 text-sm" aria-label="Tool selector">
-          {NAV_ORDER.map((id, i) => (
-            <span key={id}>
+          {NAV_ITEMS.map((item, i) => (
+            <span key={item.id}>
               {i > 0 && <span className="mx-2 text-gray-300">|</span>}
-              {route === id ? (
-                <span className="font-semibold text-blue-600" aria-current="page">{TOOLS[id].label}</span>
+              {item.kind === 'external' ? (
+                <a href={item.href} className="text-gray-500 hover:text-blue-600 hover:underline">{item.label}</a>
+              ) : route === item.id ? (
+                <span className="font-semibold text-blue-600" aria-current="page">{item.label}</span>
               ) : (
-                <a href={`#/${id}`} className="text-gray-500 hover:text-blue-600 hover:underline">{TOOLS[id].label}</a>
+                <a href={`#/${item.id}`} className="text-gray-500 hover:text-blue-600 hover:underline">{item.label}</a>
               )}
             </span>
           ))}
