@@ -6,6 +6,7 @@ import {
   DEFAULT_CARD_COLORS,
   type CardType,
   type CardContent,
+  type CardAlign,
   type PreviewContext,
   type GenerateCardsInput,
 } from '../lib/cards'
@@ -19,6 +20,7 @@ interface CardItem extends CardContent {
 interface CardsState {
   type: CardType
   cardsPerRow: 2 | 3 | 4
+  align: CardAlign
   accent: string
   accentText: string
   surface: string
@@ -45,6 +47,7 @@ function initialState(): CardsState {
   return {
     type: 'icon',
     cardsPerRow: 3,
+    align: 'left',
     accent: DEFAULT_CARD_COLORS.accent,
     accentText: DEFAULT_CARD_COLORS.accentText,
     surface: DEFAULT_CARD_COLORS.surface,
@@ -68,6 +71,11 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
 ]
 
 const PER_ROW: (2 | 3 | 4)[] = [2, 3, 4]
+
+const ALIGNS: { id: CardAlign; label: string }[] = [
+  { id: 'left', label: 'Left' },
+  { id: 'center', label: 'Centered' },
+]
 
 const CONTEXTS: { id: PreviewContext; label: string }[] = [
   { id: 'none', label: 'Full width' },
@@ -131,7 +139,7 @@ export function CardsTool() {
   const [revealHover, setRevealHover] = useState(true)
   const [previewContext, setPreviewContext] = useState<PreviewContext>('none')
 
-  const { type, cardsPerRow, accent, accentText, surface, text, cards } = state
+  const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
   const showHeadingBody = type !== 'callout'
   const validCards = cards.filter(c => c.buttonText.trim() !== '' && c.buttonHref.trim() !== '')
@@ -141,6 +149,7 @@ export function CardsTool() {
     () => ({
       type,
       cardsPerRow,
+      align,
       colors: { accent, accentText, surface, text },
       cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, buttonHref }) => ({
         imageSrc,
@@ -151,7 +160,7 @@ export function CardsTool() {
         buttonHref,
       })),
     }),
-    [type, cardsPerRow, accent, accentText, surface, text, cards],
+    [type, cardsPerRow, align, accent, accentText, surface, text, cards],
   )
 
   const previewHtml = useMemo(
@@ -241,6 +250,18 @@ export function CardsTool() {
           </div>
           <p className="mt-2 text-xs text-gray-400">
             Extra cards wrap to the next line, and the row collapses to 2-up then 1-up on smaller screens.
+          </p>
+
+          <label className="block text-xs font-medium text-gray-700 mb-1 mt-4">Row alignment</label>
+          <div className="flex gap-2">
+            {ALIGNS.map(a => (
+              <button key={a.id} type="button" onClick={() => setState(s => ({ ...s, align: a.id }))} className={segBtn(align === a.id)}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-gray-400">
+            Affects only lines that aren’t full (too few cards, or the last wrapped row). Full rows look the same either way.
           </p>
         </div>
 

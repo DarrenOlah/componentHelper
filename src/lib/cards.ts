@@ -37,11 +37,17 @@ export interface CardColors {
   // --au-gold-hover is derived (darkened accent), not user-supplied.
 }
 
+// Row alignment when a line isn't full (too few cards, or the last wrapped line).
+// 'left' is Bootstrap's default; 'center' adds .justify-content-center so an
+// under-filled line is centered instead of flush-left. Full lines are unaffected.
+export type CardAlign = 'left' | 'center'
+
 export interface GenerateCardsInput {
   type: CardType
   cardsPerRow: 2 | 3 | 4
   colors: CardColors
   cards: CardContent[]
+  align?: CardAlign // defaults to 'left'
   instanceId?: string // override the derived scope id (testing / manual)
 }
 
@@ -194,6 +200,7 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover })}
   ${cardGridCss(gridClass, input.cardsPerRow)}`
   const cols = columnClass(input.cardsPerRow)
+  const rowClass = input.align === 'center' ? 'row justify-content-center' : 'row'
   // Preview-only open state for the hover card (never on the copy path).
   const openClass = opts.revealHover && input.type === 'hover' ? ` ${inst}--open` : ''
 
@@ -213,7 +220,7 @@ ${css}
 </style>
 
 <div class="container-fluid ${gridClass}">
-  <div class="row">
+  <div class="${rowClass}">
 ${cards}
   </div>
 </div>`

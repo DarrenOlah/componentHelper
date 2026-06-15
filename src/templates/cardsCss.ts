@@ -332,6 +332,7 @@ export const PREVIEW_BOOTSTRAP_GRID_CSS = `.container-fluid {
     box-sizing: border-box;
   }
   .row { display: flex; flex-wrap: wrap; margin-right: -15px; margin-left: -15px; }
+  .justify-content-center { justify-content: center; }
   .d-flex { display: flex !important; }
   [class*="col-"] {
     position: relative;

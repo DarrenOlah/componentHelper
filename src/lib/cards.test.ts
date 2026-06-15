@@ -146,6 +146,16 @@ describe('columnClass + layout', () => {
     expect(cols).toHaveLength(2)
     expect(out.indexOf('Alpha')).toBeLessThan(out.indexOf('Beta'))
   })
+
+  it('defaults to a left-aligned row (no justify-content-center)', () => {
+    expect(gen()).toContain('<div class="row">')
+    expect(gen()).not.toContain('justify-content-center')
+    expect(gen({ align: 'left' })).toContain('<div class="row">')
+  })
+
+  it('centers an under-filled row when align is center', () => {
+    expect(gen({ align: 'center' })).toContain('<div class="row justify-content-center">')
+  })
 })
 
 describe('inter-card gap (uniform 15px, flush with text edges)', () => {
