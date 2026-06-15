@@ -88,12 +88,21 @@ const CONTEXTS: { id: PreviewContext; label: string }[] = [
 function ScaledPreview({ srcDoc, title, boxClass }: { srcDoc: string; title: string; boxClass: string }) {
   const boxRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.6)
+  const [offsetX, setOffsetX] = useState(0)
   const [contentH, setContentH] = useState(600)
 
   useEffect(() => {
     const el = boxRef.current
     if (!el) return
-    const update = () => setScale(Math.min(1, el.clientWidth / SIM_CANVAS_WIDTH))
+    // Scale the 1440px canvas to fit; when the box is wider than the canvas the
+    // scale caps at 1, so center the leftover space (matches a real centered page
+    // container) instead of pinning the canvas to the left.
+    const update = () => {
+      const w = el.clientWidth
+      const s = Math.min(1, w / SIM_CANVAS_WIDTH)
+      setScale(s)
+      setOffsetX(Math.max(0, (w - SIM_CANVAS_WIDTH * s) / 2))
+    }
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
@@ -121,6 +130,7 @@ function ScaledPreview({ srcDoc, title, boxClass }: { srcDoc: string; title: str
         style={{
           width: SIM_CANVAS_WIDTH,
           height: contentH,
+          marginLeft: offsetX,
           transform: `scale(${scale})`,
           transformOrigin: '0 0',
           border: 0,
@@ -137,7 +147,7 @@ export function CardsTool() {
   const [copied, setCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [revealHover, setRevealHover] = useState(true)
-  const [previewContext, setPreviewContext] = useState<PreviewContext>('none')
+  const [previewContext, setPreviewContext] = useState<PreviewContext>('left')
 
   const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
