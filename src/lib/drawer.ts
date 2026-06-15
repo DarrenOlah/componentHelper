@@ -3,6 +3,12 @@
 
 import { DRAWER_STATIC_CSS } from '../templates/drawerCss'
 import { HELPER_URL } from './config'
+import { escapeHtmlAttr, escapeHtmlText, safeHref, safeColor } from './sanitize'
+import { previewFontFaceCss } from './previewFonts'
+
+// Re-exported so existing importers (and drawer.test.ts) keep importing these
+// from './drawer'. The definitions now live in './sanitize', shared with cards.
+export { escapeHtmlAttr, escapeHtmlText, safeHref } from './sanitize'
 
 export type PanelWidthMode = 'auto' | 'fixed'
 
@@ -42,47 +48,7 @@ export const DEFAULT_TAB_WIDTH_REM = 2.5
 export const DEFAULT_PANEL_WIDTH_REM = 16
 export const DEFAULT_VPOS_PERCENT = 50
 
-// ---- HTML escaping (HTML context, NOT JS-string context) ------------------
-// `&` must be replaced first so the entities we introduce aren't double-escaped.
-
-// Attribute context: also escape the quote we wrap attributes in.
-export function escapeHtmlAttr(v: string): string {
-  return v
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-// Text node context.
-export function escapeHtmlText(v: string): string {
-  return v
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
-// Allow only safe URL schemes; neutralize javascript:/data:/etc. to '#'.
-// Scheme-less values (root-relative, anchors, relative paths) pass through.
-const SAFE_SCHEMES = ['http', 'https', 'mailto', 'tel']
-// Control chars (incl. tab/newline) can smuggle a scheme past the check below.
-const CONTROL_CHARS = new RegExp('[\\u0000-\\u001F\\u007F]', 'g')
-export function safeHref(raw: string): string {
-  const stripped = raw.trim().replace(CONTROL_CHARS, '')
-  if (!stripped) return ''
-  const scheme = stripped.toLowerCase().match(/^([a-z][a-z0-9+.-]*):/)
-  if (scheme) {
-    return SAFE_SCHEMES.includes(scheme[1]) ? stripped : '#'
-  }
-  return stripped
-}
-
-// ---- CSS value sanitization (prevents injection into the <style> block) ---
-const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
-function safeColor(raw: string, fallback: string): string {
-  return HEX_COLOR.test(raw.trim()) ? raw.trim() : fallback
-}
-
+// ---- CSS value clamping (rem widths / percentages) ------------------------
 function clampRem(n: number, min: number, max: number, fallback: number): string {
   const v = Number.isFinite(n) ? Math.min(Math.max(n, min), max) : fallback
   // Trim trailing zeros for tidy output (2.5 stays 2.5, 16 stays 16).
@@ -214,28 +180,6 @@ ${linksHtml}
     </div>
   </div>
 </div>`
-}
-
-// Brand G.I. fonts for the PREVIEW ONLY. The copy output omits @font-face on
-// purpose (the production DNN page already loads these families); here we load
-// them from public/fonts/ so the preview renders in the real typeface instead
-// of falling back to a system font.
-function previewFontFaceCss(): string {
-  const base = import.meta.env.BASE_URL
-  return `@font-face {
-    font-family: "GI-530";
-    src: url("${base}fonts/GI-530.woff2") format("woff2");
-    font-weight: 530;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "GI-400";
-    src: url("${base}fonts/GI-400.woff2") format("woff2");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }`
 }
 
 // Wrap the snippet in a minimal full document for the sandboxed iframe preview.
