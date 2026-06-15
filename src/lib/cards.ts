@@ -163,11 +163,11 @@ function hoverCardMarkup(inst: string, card: CardContent): string {
   const { src, alt, href, heading, body, label } = commonFields(card)
   return [
     `          <img class="${inst}__img" src="${src}" alt="${alt}" />`,
-    `          <span class="${inst}__box">`,
+    `          <div class="${inst}__box">`,
     ...(heading ? [`            <h3 class="${inst}__title">${escapeHtmlText(heading)}</h3>`] : []),
     ...(body ? [`            <span class="${inst}__desc">${escapeHtmlText(body)}</span>`] : []),
     `            <a class="${inst}__cta" href="${href}">${label}</a>`,
-    `          </span>`,
+    `          </div>`,
   ].join('\n')
 }
 

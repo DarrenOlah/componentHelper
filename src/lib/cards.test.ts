@@ -211,11 +211,23 @@ describe('per-type structure', () => {
   it('hover card: image, sliding box, title/desc/cta, hover rules', () => {
     const out = gen({ type: 'hover' })
     const id = scopeId('hover', baseInput.colors)
-    expect(out).toContain(`<span class="au-hover-card--${id}__box">`)
+    expect(out).toContain(`<div class="au-hover-card--${id}__box">`)
     expect(out).toContain(`<h3 class="au-hover-card--${id}__title">Alpha</h3>`)
     expect(out).toContain(`<span class="au-hover-card--${id}__desc">Body A</span>`)
     expect(out).toContain(`<a class="au-hover-card--${id}__cta"`)
     expect(out).toContain(`.au-hover-card--${id}:hover .au-hover-card--${id}__box`)
+  })
+
+  // The __box must be a <div>, never a <span>: it wraps the block-level <h3>
+  // title, and an inline element illegally containing a block makes DNN's
+  // CKEditor split the box on save, scattering the heading. See cards.ts.
+  it('hover card: box wraps the h3 in a block-level <div>, not a <span>', () => {
+    const out = gen({ type: 'hover' })
+    const id = scopeId('hover', baseInput.colors)
+    expect(out).not.toContain(`<span class="au-hover-card--${id}__box">`)
+    expect(out).toMatch(
+      new RegExp(`<div class="au-hover-card--${id}__box">[\\s\\S]*?<h3`)
+    )
   })
 
   it('omits the heading/body elements when blank (markup, not the CSS rules)', () => {
