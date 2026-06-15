@@ -148,6 +148,47 @@ describe('columnClass + layout', () => {
   })
 })
 
+describe('inter-card gap (uniform 15px, flush with text edges)', () => {
+  it('uses a flush, gap-based layout scoped to the grid wrapper (no negative gutters)', () => {
+    const id = scopeId('icon', baseInput.colors)
+    const g = `au-icon-card--${id}-grid`
+    const out = gen() // icon, 3-up
+    expect(out).toContain(`<div class="container-fluid ${g}">`)
+    // container padding zeroed → block lines up with the surrounding text.
+    // Compound selector + !important beats the host theme's `.container-fluid`.
+    expect(out).toContain(`.container-fluid.${g} { padding-right: 0 !important; padding-left: 0 !important; }`)
+    // row negative margins gone; gap drives spacing on both axes
+    expect(out).toContain(`.${g} > .row { margin-right: 0; margin-left: 0; gap: 15px; }`)
+    // column gutters gone; gap (not padding) separates the cards
+    expect(out).toContain(`.${g} > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }`)
+    // 3 columns + 2 gaps sum to exactly 100% (no overflow, outer cards flush)
+    expect(out).toContain(`.${g} > .row > .col-md-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }`)
+  })
+
+  it('sizes the desktop columns for the chosen cards-per-row', () => {
+    const id = scopeId('icon', baseInput.colors) // scopeId ignores cardsPerRow
+    expect(gen({ cardsPerRow: 4 })).toContain(
+      `.au-icon-card--${id}-grid > .row > .col-md-3 { flex: 0 0 calc((100% - 45px) / 4); max-width: calc((100% - 45px) / 4); }`,
+    )
+    expect(gen({ cardsPerRow: 2 })).toContain(
+      `.au-icon-card--${id}-grid > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }`,
+    )
+  })
+
+  it('callout and hover cards no longer carry top/bottom margins', () => {
+    expect(gen({ type: 'callout' })).toContain('margin: 0;')
+    expect(gen({ type: 'callout' })).not.toContain('margin: 15px 0;')
+    expect(gen({ type: 'hover' })).toContain('margin: 0;')
+    expect(gen({ type: 'hover' })).not.toContain('margin: 15px 0;')
+  })
+
+  it('icon cards keep their margin-top overhang (room for the square), not a spacing margin', () => {
+    const out = gen({ type: 'icon' })
+    expect(out).toContain('margin-top: 60px;')
+    expect(out).not.toContain('margin: 15px 0;')
+  })
+})
+
 describe('per-type structure', () => {
   it('icon card: square, optional title/text, full-bleed button, inset stretched link', () => {
     const id = scopeId('icon', baseInput.colors)
@@ -219,11 +260,12 @@ describe('preview sidebar context (preview only)', () => {
 })
 
 describe('DNN / copy constraints', () => {
-  it('copy output has no @font-face and no Bootstrap grid definitions', () => {
+  it('copy output ships no @font-face and lets the host theme drive row wrapping', () => {
     const out = gen()
     expect(out).not.toContain('@font-face')
-    expect(out).not.toContain('flex-wrap') // only the preview grid declares it
-    expect(out).not.toContain('.col-md-4 {')
+    // We ship scoped column-WIDTH overrides but never the grid engine itself —
+    // the host theme's Bootstrap provides display:flex / flex-wrap on .row.
+    expect(out).not.toContain('flex-wrap')
   })
 
   it('preview output DOES inject fonts and the grid (proves the split)', () => {

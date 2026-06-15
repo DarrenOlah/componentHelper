@@ -35,6 +35,42 @@ function varsBlock(v: CardCssVars): string {
 const F530 = '"GI-530", system-ui, Arial, sans-serif'
 const F400 = '"GI-400", system-ui, Arial, sans-serif'
 
+// Uniform inter-card gap (px), applied on BOTH axes. Cards used to space via the
+// theme's 30px Bootstrap gutter (horizontal) + a 15px card margin (vertical); we
+// now drive a single gap so cards sit flush with the surrounding text and only
+// the gaps separate them. Change this one value to retune (e.g. back to 30).
+export const CARD_GAP_PX = 15
+
+const MD_COL: Record<2 | 3 | 4, string> = { 2: 'col-md-6', 3: 'col-md-4', 4: 'col-md-3' }
+
+// Scoped layout override applied only under our own grid wrapper class (never the
+// page's other rows). We deliberately abandon Bootstrap's negative-margin gutter
+// model — which indents the block by the container's padding and would overflow if
+// that padding were removed — for a flush, gap-based layout:
+//   • zero the container-fluid padding so the block lines up with surrounding text;
+//   • zero the row's negative margins and the columns' padding;
+//   • `gap` provides CARD_GAP_PX between columns AND between wrapped lines (space
+//     only BETWEEN cards, so the outer cards stay flush — no overflow);
+//   • size each column with calc() so N columns + (N-1) gaps sum to exactly 100%.
+// Selectors are scoped + specific enough to beat the host's `.row`/`.col-*` rules.
+export function cardGridCss(gridClass: string, cardsPerRow: 2 | 3 | 4, gap = CARD_GAP_PX): string {
+  const mdCol = MD_COL[cardsPerRow]
+  // Flex-basis for n equal columns sharing (n-1) gaps across a 100% row.
+  const w = (n: number) => `calc((100% - ${(n - 1) * gap}px) / ${n})`
+  // Compound selector + !important so the zeroed gutters beat the host theme's
+  // single-class `.container-fluid { padding: 0 15px }` regardless of load order.
+  return `.container-fluid.${gridClass} { padding-right: 0 !important; padding-left: 0 !important; }
+  .${gridClass} > .row { margin-right: 0; margin-left: 0; gap: ${gap}px; }
+  .${gridClass} > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }
+  .${gridClass} > .row > .col-12 { flex: 0 0 100%; max-width: 100%; }
+  @media (min-width: 576px) {
+    .${gridClass} > .row > .col-sm-6 { flex: 0 0 ${w(2)}; max-width: ${w(2)}; }
+  }
+  @media (min-width: 768px) {
+    .${gridClass} > .row > .${mdCol} { flex: 0 0 ${w(cardsPerRow)}; max-width: ${w(cardsPerRow)}; }
+  }`
+}
+
 // ---- Icon card: overhanging square, optional heading/body, full-bleed button --
 export function iconCardCss(inst: string, v: CardCssVars): string {
   return `.${inst} {
@@ -119,6 +155,7 @@ ${varsBlock(v)}
     box-sizing: border-box;
     min-height: 250px;
     width: 100%;
+    margin: 0;
     overflow: hidden;
     background: var(--au-surface);
   }
@@ -190,6 +227,7 @@ ${varsBlock(v)}
     box-sizing: border-box;
     min-height: 250px;
     width: 100%;
+    margin: 0;
     overflow: hidden;
     background: var(--au-surface);
     color: var(--au-text);

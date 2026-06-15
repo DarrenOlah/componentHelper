@@ -9,6 +9,7 @@ import {
   iconCardCss,
   calloutCardCss,
   hoverCardCss,
+  cardGridCss,
   PREVIEW_BOOTSTRAP_GRID_CSS,
   PREVIEW_SIM_CSS,
   type CardCssVars,
@@ -187,7 +188,11 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   const id = input.instanceId ?? scopeId(input.type, input.colors)
   const base = `au-${input.type}-card`
   const inst = `${base}--${id}`
-  const css = CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover })
+  // Grid wrapper class scopes the flush, gap-based layout override to this block's
+  // container/row only, never the host page's other Bootstrap rows.
+  const gridClass = `${inst}-grid`
+  const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover })}
+  ${cardGridCss(gridClass, input.cardsPerRow)}`
   const cols = columnClass(input.cardsPerRow)
   // Preview-only open state for the hover card (never on the copy path).
   const openClass = opts.revealHover && input.type === 'hover' ? ` ${inst}--open` : ''
@@ -207,7 +212,7 @@ ${MARKUP[input.type](inst, c)}
 ${css}
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid ${gridClass}">
   <div class="row">
 ${cards}
   </div>

@@ -287,6 +287,7 @@
                                   In a Bootstrap d-flex column it stretches to match siblings. */
     width: 100%;               /* adapt to the container (e.g. a Bootstrap column) */
     max-width: 400px;
+    margin: 0;                 /* no spacing margin — the grid's gap (see row block) separates cards */
     overflow: hidden;
     background: var(--au-surface);   /* fallback shown until the image loads */
   }
@@ -379,6 +380,7 @@
                                   In a Bootstrap d-flex column it stretches to match siblings. */
     width: 100%;               /* adapt to the container (e.g. a Bootstrap column) */
     max-width: 400px;
+    margin: 0;                 /* no spacing margin — the grid's gap (see row block) separates cards */
     overflow: hidden;          /* clips the panel as it slides */
     background: var(--au-surface);   /* fallback shown until/if the image loads */
     color: #ffffff;
@@ -593,9 +595,29 @@
   }
   .au-icon-card__btn:focus { outline: none; }
   .au-icon-card__btn::after { content: ""; position: absolute; inset: 0; }
+
+  /* Flush, gap-based layout scoped to THIS grid (au-icon-card-grid) so it never
+     touches the page's other Bootstrap rows. We drop Bootstrap's negative-margin
+     gutter (which indents the block by the container's padding, and overflows if
+     that padding is removed) in favour of a real gap:
+       - zero the container padding so the block lines up with surrounding text;
+       - zero the row's negative margins and the columns' padding;
+       - gap = 15px between columns AND wrapped lines (space only BETWEEN cards,
+         so the outer cards stay flush — no overflow);
+       - size each column so 3 columns + 2 gaps sum to exactly 100%. */
+  .au-icon-card-grid { padding-right: 0; padding-left: 0; }
+  .au-icon-card-grid > .row { margin-right: 0; margin-left: 0; gap: 15px; }
+  .au-icon-card-grid > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }
+  .au-icon-card-grid > .row > .col-12 { flex: 0 0 100%; max-width: 100%; }
+  @media (min-width: 576px) {
+    .au-icon-card-grid > .row > .col-sm-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }
+  }
+  @media (min-width: 768px) {
+    .au-icon-card-grid > .row > .col-md-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }
+  }
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid au-icon-card-grid">
   <div class="row">
     <div class="col-12 col-md-4 d-flex">
       <div class="au-icon-card">
