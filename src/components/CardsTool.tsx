@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect, useRef, type SyntheticEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   generateCardsHtml,
   generateCardsPreviewHtml,
   makeDefaultCard,
   coercePersistedCards,
+  coerceCollections,
   DEFAULT_CARD_COLORS,
   MAX_CARDS,
   type CardType,
@@ -12,6 +14,7 @@ import {
   type PreviewContext,
   type GenerateCardsInput,
   type CardsSnapshot,
+  type CardsCollection,
 } from '../lib/cards'
 import { SectionLabel } from './SectionLabel'
 import { ColorField, tabTextFor } from './ColorField'
@@ -36,6 +39,28 @@ interface CardsState {
 // thrash localStorage.
 const DRAFT_KEY = 'componentHelper-cards-draft'
 const SAVE_DEBOUNCE_MS = 400
+
+// Saved card collections: a named, browser-local library the user explicitly manages
+// (separate from the autosave draft above).
+const COLLECTIONS_KEY = 'componentHelper-cards-collections'
+
+function loadCollections(): CardsCollection[] {
+  try {
+    const raw = localStorage.getItem(COLLECTIONS_KEY)
+    return raw ? coerceCollections(JSON.parse(raw)) : []
+  } catch {
+    return []
+  }
+}
+
+// Unique id for a saved collection (crypto.randomUUID where available).
+function newCollectionId(): string {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `c-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
+}
 
 // The preview renders a desktop-width canvas (the host theme's container) and is
 // scaled to fit the box, so Bootstrap's viewport-based breakpoints behave as they
@@ -194,6 +219,14 @@ export function CardsTool() {
   const [revealHover, setRevealHover] = useState(draft.revealHover)
   const [previewContext, setPreviewContext] = useState<PreviewContext>(draft.previewContext)
 
+  // Saved collections (browser-local library) + which one is currently loaded (for Update).
+  const [collections, setCollections] = useState<CardsCollection[]>(loadCollections)
+  const [loadedId, setLoadedId] = useState<string | null>(null)
+  const [collectionsOpen, setCollectionsOpen] = useState(false)
+  const [collName, setCollName] = useState('')
+  // The App nav-row portal target; resolved after mount (App.tsx renders it).
+  const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
+
   const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
   const showHeading = type === 'icon' // hover's gold band is button text, not a heading
@@ -240,15 +273,26 @@ export function CardsTool() {
   )
   const html = useMemo(() => (isComplete ? generateCardsHtml(genInput) : ''), [isComplete, genInput])
 
-  // Close the fullscreen overlay on Escape.
+  // Resolve the App nav-row portal target after mount (App.tsx renders it as a sibling,
+  // so it's in the DOM by the time this runs) — the documented "attach to an external
+  // node" use of an effect.
   useEffect(() => {
-    if (!isFullscreen) return
+    const el = document.getElementById('cards-nav-slot')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (el) setNavSlot(el)
+  }, [])
+
+  // Close the fullscreen overlay / collections modal on Escape.
+  useEffect(() => {
+    if (!isFullscreen && !collectionsOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsFullscreen(false)
+      if (e.key !== 'Escape') return
+      setIsFullscreen(false)
+      setCollectionsOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isFullscreen])
+  }, [isFullscreen, collectionsOpen])
 
   // Autosave the working draft (debounced) so a refresh or tool switch restores it.
   useEffect(() => {
@@ -315,6 +359,76 @@ export function CardsTool() {
   // Reset only the look-settings (type, layout, colors) to defaults, keeping the
   // cards the user has built. (Start over wipes everything; this is the lighter touch.)
   const handleResetSettings = () => setState(s => ({ ...s, ...defaultSettings() }))
+
+  // ---- collections (saved, browser-local library) ----
+  const persistCollections = (next: CardsCollection[]) => {
+    setCollections(next)
+    try {
+      localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(next))
+    } catch {
+      // ignore quota / disabled-storage errors
+    }
+  }
+
+  // The editable snapshot of the current editor (cards stripped of their render ids).
+  const snapshotFromState = (): CardsSnapshot => ({
+    type,
+    cardsPerRow,
+    align,
+    accent,
+    accentText,
+    surface,
+    text,
+    cards: cards.map(c => ({
+      imageSrc: c.imageSrc,
+      imageAlt: c.imageAlt,
+      heading: c.heading,
+      body: c.body,
+      buttonText: c.buttonText,
+      ctaText: c.ctaText,
+      buttonHref: c.buttonHref,
+    })),
+  })
+
+  const loadedName = collections.find(c => c.id === loadedId)?.name ?? null
+
+  const handleSaveAs = () => {
+    const name = collName.trim() || 'Untitled'
+    const coll: CardsCollection = { id: newCollectionId(), name, savedAt: Date.now(), snapshot: snapshotFromState() }
+    persistCollections([coll, ...collections])
+    setLoadedId(coll.id)
+    setCollName('')
+  }
+
+  const handleLoadCollection = (coll: CardsCollection) => {
+    if (!window.confirm(`Load "${coll.name}"? This replaces the cards currently in the editor.`)) return
+    setState(stateFromSnapshot(coll.snapshot))
+    setLoadedId(coll.id)
+    setCollectionsOpen(false)
+  }
+
+  const handleUpdateCollection = (coll: CardsCollection) => {
+    persistCollections(
+      collections.map(c => (c.id === coll.id ? { ...c, snapshot: snapshotFromState(), savedAt: Date.now() } : c)),
+    )
+    setLoadedId(coll.id)
+  }
+
+  const handleCloneCollection = (coll: CardsCollection) => {
+    const copy: CardsCollection = {
+      ...coll,
+      id: newCollectionId(),
+      name: `${coll.name} (copy)`,
+      savedAt: Date.now(),
+    }
+    persistCollections([copy, ...collections])
+  }
+
+  const handleDeleteCollection = (coll: CardsCollection) => {
+    if (!window.confirm(`Delete "${coll.name}"? This can't be undone.`)) return
+    persistCollections(collections.filter(c => c.id !== coll.id))
+    if (loadedId === coll.id) setLoadedId(null)
+  }
 
   return (
     <div className="flex flex-col xl:flex-row gap-4 items-start">
@@ -603,6 +717,130 @@ export function CardsTool() {
           </div>
           <div className="flex-1 min-h-0 overflow-auto rounded-lg bg-slate-100" onClick={e => e.stopPropagation()}>
             <ScaledPreview srcDoc={previewHtml} title="Cards fullscreen preview" boxClass="w-full bg-slate-100" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Collections toolbar button, portaled into the App nav row ── */}
+      {navSlot &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => setCollectionsOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
+          >
+            💾 Saved Card Collections
+            {collections.length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">
+                {collections.length}
+              </span>
+            )}
+          </button>,
+          navSlot,
+        )}
+
+      {/* ── Collections modal ── */}
+      {collectionsOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setCollectionsOpen(false)}
+        >
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mt-12" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-800">Saved card collections</h2>
+              <button
+                type="button"
+                onClick={() => setCollectionsOpen(false)}
+                aria-label="Close"
+                className="text-sm px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Save current as a new collection */}
+            <div className="px-4 py-3 border-b border-gray-100">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Save the current cards as a new collection</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={collName}
+                  onChange={e => setCollName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveAs()
+                  }}
+                  placeholder="Collection name"
+                  className={inputCls}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveAs}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+                >
+                  Save
+                </button>
+              </div>
+              {loadedName && (
+                <p className="mt-1.5 text-[11px] text-gray-400">
+                  Loaded from “{loadedName}” — use <span className="font-medium">Update</span> on it below to overwrite.
+                </p>
+              )}
+            </div>
+
+            {/* Saved list */}
+            <div className="max-h-[50vh] overflow-auto px-4 py-3 space-y-2">
+              {collections.length === 0 ? (
+                <p className="text-xs text-gray-400 py-6 text-center">
+                  No saved collections yet. Save the current cards above to start a library.
+                </p>
+              ) : (
+                collections.map(coll => (
+                  <div
+                    key={coll.id}
+                    className={`rounded-lg border p-2.5 ${coll.id === loadedId ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-800 truncate">{coll.name}</div>
+                      <div className="text-[10px] text-gray-400">
+                        {coll.snapshot.cards.length} card{coll.snapshot.cards.length === 1 ? '' : 's'} · {coll.snapshot.type} · saved{' '}
+                        {new Date(coll.savedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleLoadCollection(coll)}
+                        className="px-2 py-1 rounded border border-blue-300 text-blue-700 text-[11px] font-medium hover:bg-blue-100"
+                      >
+                        Load
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateCollection(coll)}
+                        title="Overwrite this collection with the current editor"
+                        className="px-2 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
+                      >
+                        Update
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCloneCollection(coll)}
+                        className="px-2 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
+                      >
+                        Clone
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCollection(coll)}
+                        className="ml-auto px-2 py-1 rounded border border-red-200 text-red-500 text-[11px] font-medium hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

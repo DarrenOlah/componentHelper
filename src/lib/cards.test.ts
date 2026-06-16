@@ -9,6 +9,7 @@ import {
 import {
   coercePersistedCards,
   coerceSnapshot,
+  coerceCollections,
   makeDefaultCard,
   MAX_CARDS,
   DEFAULT_CARD_COLORS,
@@ -422,5 +423,36 @@ describe('coercePersistedCards', () => {
     const d = coercePersistedCards({ state: draft.state, revealHover: 'yes', previewContext: 'nope' })!
     expect(d.revealHover).toBe(true)
     expect(d.previewContext).toBe('left')
+  })
+})
+
+describe('coerceCollections', () => {
+  const snap = { type: 'icon', cardsPerRow: 3, align: 'left', cards: [{ ...baseInput.cards[0] }] }
+
+  it('returns an empty array for non-arrays', () => {
+    expect(coerceCollections(null)).toEqual([])
+    expect(coerceCollections({})).toEqual([])
+    expect(coerceCollections('x')).toEqual([])
+  })
+
+  it('keeps valid entries and coerces their snapshots', () => {
+    const out = coerceCollections([{ id: 'a', name: 'Mine', savedAt: 123, snapshot: snap }])
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe('a')
+    expect(out[0].name).toBe('Mine')
+    expect(out[0].savedAt).toBe(123)
+    expect(out[0].snapshot.cards).toHaveLength(1)
+  })
+
+  it('drops entries missing an id or a usable snapshot, and defaults name/savedAt', () => {
+    const out = coerceCollections([
+      { id: '', name: 'no id', snapshot: snap }, // missing id → dropped
+      { id: 'b', snapshot: { type: 'icon' } }, // snapshot has no cards array → dropped
+      'nope', // not an object → dropped
+      { id: 'c', snapshot: snap }, // valid; name/savedAt defaulted
+    ])
+    expect(out.map(c => c.id)).toEqual(['c'])
+    expect(out[0].name).toBe('Untitled')
+    expect(out[0].savedAt).toBe(0)
   })
 })
