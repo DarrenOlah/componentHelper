@@ -22,9 +22,10 @@ export type CardType = 'icon' | 'callout' | 'hover'
 export interface CardContent {
   imageSrc: string // icon: the square icon; callout/hover: the cover photo
   imageAlt: string
-  heading: string // icon __title, hover __title (omitted when blank)
+  heading: string // icon __title only (omitted when blank)
   body: string // icon __text, hover __desc (omitted when blank)
-  buttonText: string // icon/callout __btn, hover __cta
+  buttonText: string // icon/callout __btn, hover __title (gold band)
+  ctaText: string // hover __cta only (the revealed link)
   buttonHref: string
 }
 
@@ -77,8 +78,9 @@ export function makeDefaultCard(): CardContent {
     imageSrc: '',
     imageAlt: '',
     heading: 'Program name',
-    body: 'A short supporting line of body copy goes here to describe this program or feature.',
+    body: '',
     buttonText: 'Learn more',
+    ctaText: '',
     buttonHref: '#',
   }
 }
@@ -166,13 +168,18 @@ function calloutCardMarkup(inst: string, card: CardContent): string {
 }
 
 function hoverCardMarkup(inst: string, card: CardContent): string {
-  const { src, alt, href, heading, body, label } = commonFields(card)
+  const { src, alt, href, body, label } = commonFields(card)
+  // The gold band (button text) is the card's single stretched link: it's required,
+  // so the <a> is never empty (DNN strips empty elements). The CTA is optional and
+  // simply omitted when blank — it's no longer the click target, just non-anchor
+  // text inside the card-wide clickable overlay.
+  const cta = card.ctaText.trim()
   return [
     `          <img class="${inst}__img" src="${src}" alt="${alt}" />`,
     `          <div class="${inst}__box">`,
-    ...(heading ? [`            <h3 class="${inst}__title">${escapeHtmlText(heading)}</h3>`] : []),
+    `            <h3 class="${inst}__title"><a class="${inst}__title-link" href="${href}">${label}</a></h3>`,
     ...(body ? [`            <span class="${inst}__desc">${escapeHtmlText(body)}</span>`] : []),
-    `            <a class="${inst}__cta" href="${href}">${label}</a>`,
+    ...(cta ? [`            <span class="${inst}__cta">${escapeHtmlText(cta)}</span>`] : []),
     `          </div>`,
   ].join('\n')
 }

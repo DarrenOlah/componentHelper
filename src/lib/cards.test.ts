@@ -13,8 +13,8 @@ const baseInput: GenerateCardsInput = {
   cardsPerRow: 3,
   colors: { accent: '#FFCC33', accentText: '#000000', surface: '#000000', text: '#FFFFFF' },
   cards: [
-    { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', buttonHref: 'https://example.com/a' },
-    { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', buttonHref: 'https://example.com/b' },
+    { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: 'Visit A', buttonHref: 'https://example.com/a' },
+    { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: 'Visit B', buttonHref: 'https://example.com/b' },
   ],
 }
 
@@ -218,14 +218,33 @@ describe('per-type structure', () => {
     expect(out).toContain('top: -1000px;')
   })
 
-  it('hover card: image, sliding box, title/desc/cta, hover rules', () => {
+  it('hover card: gold band is the single stretched link; CTA is non-anchor text', () => {
     const out = gen({ type: 'hover' })
     const id = scopeId('hover', baseInput.colors)
     expect(out).toContain(`<div class="au-hover-card--${id}__box">`)
-    expect(out).toContain(`<h3 class="au-hover-card--${id}__title">Alpha</h3>`)
+    // The gold band (__title) wraps the card's only link, fed by button text.
+    expect(out).toContain(
+      `<h3 class="au-hover-card--${id}__title"><a class="au-hover-card--${id}__title-link" href="https://example.com/a">Go A</a></h3>`,
+    )
     expect(out).toContain(`<span class="au-hover-card--${id}__desc">Body A</span>`)
-    expect(out).toContain(`<a class="au-hover-card--${id}__cta"`)
+    // The CTA is a span (not an <a>) fed by ctaText.
+    expect(out).toContain(`<span class="au-hover-card--${id}__cta">Visit A</span>`)
+    expect(out).not.toContain(`<a class="au-hover-card--${id}__cta"`)
+    // The stretched-link overlay moved to the band link, off the CTA.
+    expect(out).toContain(`.au-hover-card--${id}__title-link::after`)
+    expect(out).not.toContain(`.au-hover-card--${id}__cta::after`)
     expect(out).toContain(`.au-hover-card--${id}:hover .au-hover-card--${id}__box`)
+  })
+
+  it('hover card: blank CTA is omitted entirely, but the band link still renders (no empty elements)', () => {
+    const id = scopeId('hover', baseInput.colors)
+    const out = gen({ type: 'hover', cards: [{ ...baseInput.cards[0], buttonText: '   ', ctaText: '   ' }] })
+    // Required band link always renders (falls back to "Learn more"), never empty.
+    expect(out).toContain(
+      `<h3 class="au-hover-card--${id}__title"><a class="au-hover-card--${id}__title-link" href="https://example.com/a">Learn more</a></h3>`,
+    )
+    // No CTA element at all when ctaText is blank.
+    expect(out).not.toContain(`class="au-hover-card--${id}__cta"`)
   })
 
   // The __box must be a <div>, never a <span>: it wraps the block-level <h3>

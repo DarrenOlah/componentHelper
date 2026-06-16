@@ -277,6 +277,30 @@ ${varsBlock(v)}
     color: var(--au-text) !important;
     text-shadow: 0 -2px 8px rgba(0, 0, 0, 0.6);
   }
+  /* The gold band is the card's single stretched link. Kept unpositioned so its
+     ::after overlay resolves to __box and covers the whole card; color inherits
+     from __title so it follows the rest/hover band color. */
+  .${inst}__title-link,
+  .${inst}__title-link:link,
+  .${inst}__title-link:visited {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+  .${inst}__title-link:focus { outline: none; }
+  .${inst}__title-link::after {
+    content: "";
+    position: absolute;
+    top: -1000px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+  }
   .${inst}__desc {
     display: block;
     padding: 3%;
@@ -285,9 +309,9 @@ ${varsBlock(v)}
     font-weight: 400 !important;
     font-size: 16px !important;
   }
-  .${inst}__cta,
-  .${inst}__cta:link,
-  .${inst}__cta:visited {
+  /* Optional, non-anchor CTA text. The whole-card overlay (on __title-link) makes
+     it clickable; kept as plain text so the card has a single focusable link. */
+  .${inst}__cta {
     display: inline-block;
     align-self: center;
     padding: 0 3%;
@@ -297,23 +321,6 @@ ${varsBlock(v)}
     font-family: ${F530} !important;
     font-weight: 530 !important;
     font-size: 18px !important;
-    text-decoration: none !important;
-  }
-  .${inst}__cta:hover,
-  .${inst}__cta:focus {
-    background: transparent !important;
-    color: var(--au-gold) !important;
-    text-decoration: none !important;
-  }
-  .${inst}__cta:focus { outline: none; }
-  .${inst}__cta::after {
-    content: "";
-    position: absolute;
-    top: -1000px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1;
   }
   @media (prefers-reduced-motion: reduce) {
     .${inst}__box { transition: none; }

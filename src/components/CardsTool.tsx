@@ -151,7 +151,8 @@ export function CardsTool() {
 
   const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
-  const showHeadingBody = type !== 'callout'
+  const showHeading = type === 'icon' // hover's gold band is button text, not a heading
+  const showBody = type !== 'callout' // icon __text + hover __desc
   const validCards = cards.filter(c => c.buttonText.trim() !== '' && c.buttonHref.trim() !== '')
   const isComplete = cards.length > 0 && validCards.length === cards.length
 
@@ -161,12 +162,13 @@ export function CardsTool() {
       cardsPerRow,
       align,
       colors: { accent, accentText, surface, text },
-      cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, buttonHref }) => ({
+      cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, ctaText, buttonHref }) => ({
         imageSrc,
         imageAlt,
         heading,
         body,
         buttonText,
+        ctaText,
         buttonHref,
       })),
     }),
@@ -351,32 +353,41 @@ export function CardsTool() {
                   className={`${inputCls} mb-1.5`}
                 />
 
-                {showHeadingBody && (
-                  <>
-                    <input
-                      type="text"
-                      value={card.heading}
-                      onChange={e => updateCard(card.id, { heading: e.target.value })}
-                      placeholder="Heading (optional)"
-                      className={`${inputCls} mb-1.5`}
-                    />
-                    <textarea
-                      value={card.body}
-                      onChange={e => updateCard(card.id, { body: e.target.value })}
-                      placeholder="Body text (optional)"
-                      rows={2}
-                      className={`${inputCls} mb-1.5 resize-y`}
-                    />
-                  </>
+                {showHeading && (
+                  <input
+                    type="text"
+                    value={card.heading}
+                    onChange={e => updateCard(card.id, { heading: e.target.value })}
+                    placeholder="Heading (optional)"
+                    className={`${inputCls} mb-1.5`}
+                  />
+                )}
+                {showBody && (
+                  <textarea
+                    value={card.body}
+                    onChange={e => updateCard(card.id, { body: e.target.value })}
+                    placeholder="Body text (optional)"
+                    rows={2}
+                    className={`${inputCls} mb-1.5 resize-y`}
+                  />
                 )}
 
                 <input
                   type="text"
                   value={card.buttonText}
                   onChange={e => updateCard(card.id, { buttonText: e.target.value })}
-                  placeholder={type === 'hover' ? 'CTA text *' : 'Button text *'}
+                  placeholder="Button text *"
                   className={`${inputCls} mb-1.5`}
                 />
+                {type === 'hover' && (
+                  <input
+                    type="text"
+                    value={card.ctaText}
+                    onChange={e => updateCard(card.id, { ctaText: e.target.value })}
+                    placeholder="CTA text (optional)"
+                    className={`${inputCls} mb-1.5`}
+                  />
+                )}
                 <input
                   type="text"
                   value={card.buttonHref}
