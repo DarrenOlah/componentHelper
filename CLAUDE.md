@@ -7,7 +7,7 @@ Guidance for working in this repo.
 **Component Helper** — a Vite + React + TypeScript + Tailwind app that generates
 copy-paste HTML/CSS snippets for DNN (DotNetNuke) Text/HTML modules. It mirrors
 the architecture of the sister `heroHelper` repo. It's a *multi-tool* app; the
-only tool today is the **Drawer**.
+tools today are the **Drawer** (`#/drawer`) and the **Card Helper** (`#/cards`).
 
 The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
 
@@ -29,6 +29,21 @@ The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
   HTML output + copy + reset.
 - `src/components/ColorField.tsx` — reusable Army-brand color palette (preset
   swatches + custom hex + native picker), used for both drawer colors.
+- `src/lib/cards.ts` — **pure** Card Helper generator (mirrors `drawer.ts`), plus
+  the persistence coercers (`coerceSnapshot` / `coercePersistedCards` /
+  `coerceCollections`) that validate anything read back from storage. DOM-free.
+- `src/lib/parseCards.ts` — best-effort **importer** (`parseCardsHtml`): recovers
+  editable fields from pasted generated HTML (whole block, markup-only, or a
+  rendered-page copy), falling back to defaults rather than failing. Intentionally
+  DOM-aware (`DOMParser`), so it lives apart from the pure `cards.ts`; its test sets
+  `// @vitest-environment jsdom` (the only jsdom test — `jsdom` is a devDependency).
+- `src/components/CardsTool.tsx` — Card Helper UI. Owns the browser-local state it
+  manages itself (localStorage I/O stays out of the pure libs): a debounced autosave
+  draft (`componentHelper-cards-draft`) and named collections
+  (`componentHelper-cards-collections`). "Start over" wipes the draft; "Reset
+  settings" resets only the look, keeping cards. Its **Import** / **Saved Card
+  Collections** buttons render into App's right-aligned `#cards-nav-slot` via a
+  `createPortal`, so the tool keeps state ownership while pinning controls to the nav row.
 - `public/fonts/` — brand G.I. `woff2` fonts, served at `base`. Loaded via
   `@font-face` **into the preview iframe only** (`generateDrawerPreviewHtml`), so
   the preview renders in the real typeface; the copy output stays `@font-face`-free.
@@ -54,5 +69,6 @@ The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
 npm run dev | test | test:run | build | lint
 ```
 
-Always run `npm run test:run` and `npm run build` after touching `src/lib/drawer.ts`
-or `src/templates/drawerCss.ts`.
+Always run `npm run test:run` and `npm run build` after touching the generators or
+their CSS — `src/lib/drawer.ts`, `src/templates/drawerCss.ts`, `src/lib/cards.ts`,
+`src/lib/parseCards.ts`, or `src/templates/cardsCss.ts`.

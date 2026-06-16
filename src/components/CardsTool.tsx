@@ -16,6 +16,7 @@ import {
   type CardsSnapshot,
   type CardsCollection,
 } from '../lib/cards'
+import { parseCardsHtml } from '../lib/parseCards'
 import { SectionLabel } from './SectionLabel'
 import { ColorField, tabTextFor } from './ColorField'
 
@@ -224,6 +225,11 @@ export function CardsTool() {
   const [loadedId, setLoadedId] = useState<string | null>(null)
   const [collectionsOpen, setCollectionsOpen] = useState(false)
   const [collName, setCollName] = useState('')
+  // Import: paste generated HTML back to recover the editable fields.
+  const [importOpen, setImportOpen] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importNote, setImportNote] = useState<string | null>(null)
   // The App nav-row portal target; resolved after mount (App.tsx renders it).
   const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
 
@@ -282,17 +288,18 @@ export function CardsTool() {
     if (el) setNavSlot(el)
   }, [])
 
-  // Close the fullscreen overlay / collections modal on Escape.
+  // Close the fullscreen overlay / collections / import modals on Escape.
   useEffect(() => {
-    if (!isFullscreen && !collectionsOpen) return
+    if (!isFullscreen && !collectionsOpen && !importOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setIsFullscreen(false)
       setCollectionsOpen(false)
+      setImportOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isFullscreen, collectionsOpen])
+  }, [isFullscreen, collectionsOpen, importOpen])
 
   // Autosave the working draft (debounced) so a refresh or tool switch restores it.
   useEffect(() => {
@@ -428,6 +435,36 @@ export function CardsTool() {
     if (!window.confirm(`Delete "${coll.name}"? This can't be undone.`)) return
     persistCollections(collections.filter(c => c.id !== coll.id))
     if (loadedId === coll.id) setLoadedId(null)
+  }
+
+  // ---- import (parse pasted HTML back into the editor) ----
+  const handleImport = () => {
+    const parsed = parseCardsHtml(importText)
+    if (!parsed) {
+      setImportNote(null)
+      setImportError("Couldn't recognize any cards in that HTML. Paste the code this tool generated (the whole block, or at least the card markup).")
+      return
+    }
+    if (!window.confirm('Replace the cards currently in the editor with the imported ones?')) return
+    setState({
+      type: parsed.type,
+      cardsPerRow: parsed.cardsPerRow,
+      align: parsed.align ?? 'left',
+      accent: parsed.colors.accent,
+      accentText: parsed.colors.accentText,
+      surface: parsed.colors.surface,
+      text: parsed.colors.text,
+      cards: parsed.cards.map(c => makeCard(c)),
+    })
+    setLoadedId(null) // imported content isn't tied to a saved collection
+    setImportError(null)
+    setImportText('')
+    const n = parsed.cards.length
+    const colorsDefaulted = !/--au-gold/.test(importText)
+    setImportNote(
+      `Imported ${n} card${n === 1 ? '' : 's'}.` +
+        (colorsDefaulted ? ' Colors weren’t found in the paste, so defaults were applied.' : ''),
+    )
   }
 
   return (
@@ -721,21 +758,34 @@ export function CardsTool() {
         </div>
       )}
 
-      {/* ── Collections toolbar button, portaled into the App nav row ── */}
+      {/* ── Card Helper toolbar buttons, portaled into the App nav row ── */}
       {navSlot &&
         createPortal(
-          <button
-            type="button"
-            onClick={() => setCollectionsOpen(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
-          >
-            💾 Saved Card Collections
-            {collections.length > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">
-                {collections.length}
-              </span>
-            )}
-          </button>,
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setImportError(null)
+                setImportNote(null)
+                setImportOpen(true)
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
+            >
+              ⤵ Import
+            </button>
+            <button
+              type="button"
+              onClick={() => setCollectionsOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
+            >
+              💾 Saved Card Collections
+              {collections.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">
+                  {collections.length}
+                </span>
+              )}
+            </button>
+          </>,
           navSlot,
         )}
 
@@ -840,6 +890,65 @@ export function CardsTool() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Import modal ── */}
+      {importOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setImportOpen(false)}
+        >
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mt-12" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-800">Import from generated HTML</h2>
+              <button
+                type="button"
+                onClick={() => setImportOpen(false)}
+                aria-label="Close"
+                className="text-sm px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs text-gray-500">
+                Paste a card block this tool generated to recover its editable fields. A partial paste (just the
+                markup, no <code className="text-[11px]">&lt;style&gt;</code>) works too — colors then fall back to defaults.
+              </p>
+              <textarea
+                value={importText}
+                onChange={e => setImportText(e.target.value)}
+                placeholder="Paste the generated HTML here…"
+                rows={8}
+                className={`${inputCls} font-mono resize-y`}
+              />
+              {importError && <p className="text-xs text-red-600">{importError}</p>}
+              {importNote && <p className="text-xs text-green-600">{importNote}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportText('')
+                    setImportError(null)
+                    setImportNote(null)
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-50"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImport}
+                  disabled={!importText.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Load cards
+                </button>
+              </div>
             </div>
           </div>
         </div>
