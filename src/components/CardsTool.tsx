@@ -3,12 +3,15 @@ import {
   generateCardsHtml,
   generateCardsPreviewHtml,
   makeDefaultCard,
+  coercePersistedCards,
   DEFAULT_CARD_COLORS,
+  MAX_CARDS,
   type CardType,
   type CardContent,
   type CardAlign,
   type PreviewContext,
   type GenerateCardsInput,
+  type CardsSnapshot,
 } from '../lib/cards'
 import { SectionLabel } from './SectionLabel'
 import { ColorField, tabTextFor } from './ColorField'
@@ -28,7 +31,11 @@ interface CardsState {
   cards: CardItem[]
 }
 
-const MAX_CARDS = 12
+// Autosave: the working draft survives refreshes and Drawer↔Cards navigation (the
+// router unmounts this component on tool switch). Written debounced so typing doesn't
+// thrash localStorage.
+const DRAFT_KEY = 'componentHelper-cards-draft'
+const SAVE_DEBOUNCE_MS = 400
 
 // The preview renders a desktop-width canvas (the host theme's container) and is
 // scaled to fit the box, so Bootstrap's viewport-based breakpoints behave as they
@@ -39,21 +46,57 @@ const SIM_CANVAS_WIDTH = 1440
 
 // Stable, render-safe ids for the cards list (avoids index-as-key on reorder).
 let nextCardId = 0
-function makeCard(): CardItem {
-  return { id: nextCardId++, ...makeDefaultCard() }
+function makeCard(content: CardContent = makeDefaultCard()): CardItem {
+  return { id: nextCardId++, ...content }
 }
 
-function initialState(): CardsState {
+// The look-settings half of the state (everything but `cards`). Shared by initialState
+// and the "Reset settings" action so defaults can't drift between them.
+function defaultSettings() {
   return {
-    type: 'icon',
-    cardsPerRow: 3,
-    align: 'left',
+    type: 'icon' as CardType,
+    cardsPerRow: 3 as 2 | 3 | 4,
+    align: 'left' as CardAlign,
     accent: DEFAULT_CARD_COLORS.accent,
     accentText: DEFAULT_CARD_COLORS.accentText,
     surface: DEFAULT_CARD_COLORS.surface,
     text: DEFAULT_CARD_COLORS.text,
-    cards: [makeCard(), makeCard(), makeCard()],
   }
+}
+
+function initialState(): CardsState {
+  return { ...defaultSettings(), cards: [makeCard(), makeCard(), makeCard()] }
+}
+
+// Build a CardsState from a coerced snapshot, assigning fresh render ids so the
+// module's id counter stays ahead of restored cards (no key collisions on add).
+function stateFromSnapshot(snap: CardsSnapshot): CardsState {
+  const { cards, ...settings } = snap
+  return { ...settings, cards: cards.map(c => makeCard(c)) }
+}
+
+interface LoadedDraft {
+  state: CardsState
+  revealHover: boolean
+  previewContext: PreviewContext
+}
+// Seed the editor from the autosave draft, falling back to defaults on missing/corrupt
+// storage. Parses exactly once (called from a lazy useState initializer).
+function loadDraft(): LoadedDraft {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    const draft = raw ? coercePersistedCards(JSON.parse(raw)) : null
+    if (draft) {
+      return {
+        state: stateFromSnapshot(draft.snapshot),
+        revealHover: draft.revealHover,
+        previewContext: draft.previewContext,
+      }
+    }
+  } catch {
+    // fall through to defaults on parse/storage error
+  }
+  return { state: initialState(), revealHover: true, previewContext: 'left' }
 }
 
 const inputCls =
@@ -143,11 +186,13 @@ function ScaledPreview({ srcDoc, title, boxClass }: { srcDoc: string; title: str
 }
 
 export function CardsTool() {
-  const [state, setState] = useState<CardsState>(initialState)
+  // Seed every persisted field from the autosave draft, parsing storage exactly once.
+  const [draft] = useState(loadDraft)
+  const [state, setState] = useState<CardsState>(draft.state)
   const [copied, setCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [revealHover, setRevealHover] = useState(true)
-  const [previewContext, setPreviewContext] = useState<PreviewContext>('left')
+  const [revealHover, setRevealHover] = useState(draft.revealHover)
+  const [previewContext, setPreviewContext] = useState<PreviewContext>(draft.previewContext)
 
   const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
@@ -191,6 +236,18 @@ export function CardsTool() {
     return () => window.removeEventListener('keydown', onKey)
   }, [isFullscreen])
 
+  // Autosave the working draft (debounced) so a refresh or tool switch restores it.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 1, state, revealHover, previewContext }))
+      } catch {
+        // ignore quota / disabled-storage errors
+      }
+    }, SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [state, revealHover, previewContext])
+
   // ---- handlers ----
   const updateCard = (id: number, patch: Partial<CardContent>) =>
     setState(s => ({ ...s, cards: s.cards.map(c => (c.id === id ? { ...c, ...patch } : c)) }))
@@ -227,8 +284,17 @@ export function CardsTool() {
     })
   }
 
+  // Start over: wipe the saved draft and reset everything (incl. preview toggles) to
+  // defaults. The autosave effect then re-persists the defaults.
   const handleReset = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY)
+    } catch {
+      // ignore disabled-storage errors
+    }
     setState(initialState())
+    setRevealHover(true)
+    setPreviewContext('left')
     setCopied(false)
   }
 

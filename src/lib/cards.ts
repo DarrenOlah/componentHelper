@@ -66,6 +66,9 @@ export interface RenderOptions {
 }
 
 // ---- Defaults -------------------------------------------------------------
+// Hard cap on cards in one row/block (UI add-button + persisted-array clamp).
+export const MAX_CARDS = 12
+
 export const DEFAULT_CARD_COLORS: CardColors = {
   accent: '#FFCC33', // Army Gold
   accentText: '#000000',
@@ -267,4 +270,116 @@ ${generateCardsHtml(input, { revealHover: opts.revealHover })}
   </div>
 </body>
 </html>`
+}
+
+// ---- Persistence: validation / coercion -----------------------------------
+// localStorage I/O lives in the component (keeps this module DOM-free); these pure
+// helpers validate whatever was parsed out of it, so a hand-edited or stale blob can
+// never crash the tool — every field falls back to a safe default.
+
+// The editable card state minus the component's render-only `id`s: the unit both the
+// autosave draft and a saved collection store. Mirrors CardsState in CardsTool.
+export interface CardsSnapshot {
+  type: CardType
+  cardsPerRow: 2 | 3 | 4
+  align: CardAlign
+  accent: string
+  accentText: string
+  surface: string
+  text: string
+  cards: CardContent[]
+}
+
+const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover']
+const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center']
+const PREVIEW_CONTEXTS: readonly PreviewContext[] = ['none', 'left', 'both']
+const PER_ROW_VALUES: readonly (2 | 3 | 4)[] = [2, 3, 4]
+
+function isObj(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null
+}
+function str(x: unknown, fallback = ''): string {
+  return typeof x === 'string' ? x : fallback
+}
+function oneOf<T>(x: unknown, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(x as T) ? (x as T) : fallback
+}
+
+// Normalize one card's content: keep string fields, drop anything else (incl. a
+// stored `id` — the component re-keys cards on load), fill gaps from the default.
+function coerceCardContent(raw: unknown): CardContent {
+  const d = makeDefaultCard()
+  if (!isObj(raw)) return d
+  return {
+    imageSrc: str(raw.imageSrc, d.imageSrc),
+    imageAlt: str(raw.imageAlt, d.imageAlt),
+    heading: str(raw.heading, d.heading),
+    body: str(raw.body, d.body),
+    buttonText: str(raw.buttonText, d.buttonText),
+    ctaText: str(raw.ctaText, d.ctaText),
+    buttonHref: str(raw.buttonHref, d.buttonHref),
+  }
+}
+
+// Validate a settings+cards snapshot. Returns null only when `cards` is absent/not an
+// array (i.e. not a recognizable snapshot); otherwise every field is coerced. Colors
+// pass through as strings — resolveColors/safeColor sanitize them at generation time.
+export function coerceSnapshot(raw: unknown): CardsSnapshot | null {
+  if (!isObj(raw) || !Array.isArray(raw.cards)) return null
+  return {
+    type: oneOf(raw.type, CARD_TYPES, 'icon'),
+    cardsPerRow: oneOf(raw.cardsPerRow, PER_ROW_VALUES, 3),
+    align: oneOf(raw.align, CARD_ALIGNS, 'left'),
+    accent: str(raw.accent, DEFAULT_CARD_COLORS.accent),
+    accentText: str(raw.accentText, DEFAULT_CARD_COLORS.accentText),
+    surface: str(raw.surface, DEFAULT_CARD_COLORS.surface),
+    text: str(raw.text, DEFAULT_CARD_COLORS.text),
+    cards: raw.cards.slice(0, MAX_CARDS).map(coerceCardContent),
+  }
+}
+
+// The autosave draft envelope: the editable snapshot plus the two preview-only view
+// toggles. Returns null when the snapshot is unrecognizable (caller uses defaults).
+export interface PersistedCardsDraft {
+  snapshot: CardsSnapshot
+  revealHover: boolean
+  previewContext: PreviewContext
+}
+export function coercePersistedCards(raw: unknown): PersistedCardsDraft | null {
+  if (!isObj(raw)) return null
+  const snapshot = coerceSnapshot(raw.state)
+  if (!snapshot) return null
+  return {
+    snapshot,
+    revealHover: typeof raw.revealHover === 'boolean' ? raw.revealHover : true,
+    previewContext: oneOf(raw.previewContext, PREVIEW_CONTEXTS, 'left'),
+  }
+}
+
+// A named, saved set of cards (browser-local library). `snapshot` is the editable
+// state; `savedAt` is an epoch-ms stamp for display/sort.
+export interface CardsCollection {
+  id: string
+  name: string
+  savedAt: number
+  snapshot: CardsSnapshot
+}
+// Validate the stored collections array, dropping any entry that isn't a usable
+// snapshot or is missing an id (app always writes one).
+export function coerceCollections(raw: unknown): CardsCollection[] {
+  if (!Array.isArray(raw)) return []
+  const out: CardsCollection[] = []
+  for (const item of raw) {
+    if (!isObj(item)) continue
+    const id = str(item.id)
+    const snapshot = coerceSnapshot(item.snapshot)
+    if (!id || !snapshot) continue
+    out.push({
+      id,
+      name: str(item.name, 'Untitled'),
+      savedAt: typeof item.savedAt === 'number' ? item.savedAt : 0,
+      snapshot,
+    })
+  }
+  return out
 }
