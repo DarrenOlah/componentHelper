@@ -344,6 +344,9 @@ export interface PersistedCardsDraft {
   snapshot: CardsSnapshot
   revealHover: boolean
   previewContext: PreviewContext
+  // The id of the open collection (if any), so a tool switch / reload restores the
+  // open-file link, not just the cards. Null when editing an untitled draft.
+  loadedId: string | null
 }
 export function coercePersistedCards(raw: unknown): PersistedCardsDraft | null {
   if (!isObj(raw)) return null
@@ -353,6 +356,7 @@ export function coercePersistedCards(raw: unknown): PersistedCardsDraft | null {
     snapshot,
     revealHover: typeof raw.revealHover === 'boolean' ? raw.revealHover : true,
     previewContext: oneOf(raw.previewContext, PREVIEW_CONTEXTS, 'left'),
+    loadedId: typeof raw.loadedId === 'string' ? raw.loadedId : null,
   }
 }
 
@@ -360,12 +364,14 @@ export function coercePersistedCards(raw: unknown): PersistedCardsDraft | null {
 // state; `savedAt` is an epoch-ms stamp for display/sort. `url`/`description` are
 // optional site metadata — a reminder of where the collection is used on the live
 // site. They describe the collection, not the cards, so they're outside `snapshot`
-// and never affect generated HTML or unsaved-changes detection.
+// and never affect generated HTML. `previewContext` is the page layout the cards
+// were designed for, so the collection reopens in the width it was built against.
 export interface CardsCollection {
   id: string
   name: string
   savedAt: number
   snapshot: CardsSnapshot
+  previewContext: PreviewContext
   url?: string
   description?: string
 }
@@ -384,6 +390,7 @@ export function coerceCollections(raw: unknown): CardsCollection[] {
       name: str(item.name, 'Untitled'),
       savedAt: typeof item.savedAt === 'number' ? item.savedAt : 0,
       snapshot,
+      previewContext: oneOf(item.previewContext, PREVIEW_CONTEXTS, 'left'),
       url: str(item.url),
       description: str(item.description),
     })

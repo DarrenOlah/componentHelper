@@ -135,10 +135,13 @@ interface LoadedDraft {
   state: CardsState
   revealHover: boolean
   previewContext: PreviewContext
+  loadedId: string | null
 }
 // Seed the editor from the autosave draft, falling back to defaults on missing/corrupt
-// storage. Parses exactly once (called from a lazy useState initializer).
-function loadDraft(): LoadedDraft {
+// storage. Parses exactly once (called from a lazy useState initializer). `loadedId` is
+// the open-file link; it's validated against the loaded library before use, so a stale
+// id (collection since deleted) safely reads as an untitled draft.
+function loadDraft(knownCollectionIds: ReadonlySet<string>): LoadedDraft {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
     const draft = raw ? coercePersistedCards(JSON.parse(raw)) : null
@@ -147,12 +150,13 @@ function loadDraft(): LoadedDraft {
         state: stateFromSnapshot(draft.snapshot),
         revealHover: draft.revealHover,
         previewContext: draft.previewContext,
+        loadedId: draft.loadedId && knownCollectionIds.has(draft.loadedId) ? draft.loadedId : null,
       }
     }
   } catch {
     // fall through to defaults on parse/storage error
   }
-  return { state: initialState(), revealHover: true, previewContext: 'left' }
+  return { state: initialState(), revealHover: true, previewContext: 'left', loadedId: null }
 }
 
 const inputCls =
@@ -242,19 +246,23 @@ function ScaledPreview({ srcDoc, title, boxClass }: { srcDoc: string; title: str
 }
 
 export function CardsTool() {
+  // Saved collections (browser-local library). Loaded first so the draft can validate
+  // its open-file link against the known ids. `loadedId` is the *open file*;
+  // `selectedId` is the row highlighted in the library modal (drives its preview).
+  const [collections, setCollections] = useState<CardsCollection[]>(loadCollections)
   // Seed every persisted field from the autosave draft, parsing storage exactly once.
-  const [draft] = useState(loadDraft)
+  const [draft] = useState(() => loadDraft(new Set(collections.map(c => c.id))))
   const [state, setState] = useState<CardsState>(draft.state)
   const [copied, setCopied] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [revealHover, setRevealHover] = useState(draft.revealHover)
   const [previewContext, setPreviewContext] = useState<PreviewContext>(draft.previewContext)
 
-  // Saved collections (browser-local library). `loadedId` is the *open file*;
-  // `selectedId` is the row highlighted in the library modal (drives its preview).
-  const [collections, setCollections] = useState<CardsCollection[]>(loadCollections)
-  const [loadedId, setLoadedId] = useState<string | null>(null)
+  const [loadedId, setLoadedId] = useState<string | null>(draft.loadedId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Inline rename of the open file's name from the nav row.
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
   const [collectionsOpen, setCollectionsOpen] = useState(false)
   const [sortMode, setSortMode] = useState<'recent' | 'name'>('recent')
   // Editing buffer for the selected collection's metadata (synced on select).
@@ -328,7 +336,10 @@ export function CardsTool() {
   const loadedColl = collections.find(c => c.id === loadedId) ?? null
   const loadedName = loadedColl?.name ?? null
   const referenceSnapshot = loadedColl ? loadedColl.snapshot : DEFAULT_SNAPSHOT
-  const isDirty = !snapshotsEqual(currentSnapshot, referenceSnapshot)
+  // The preview Content Width is part of the file: the open collection's saved width,
+  // or the editor default ('left') when untitled. Changing it counts as a change.
+  const referenceContext: PreviewContext = loadedColl?.previewContext ?? 'left'
+  const isDirty = !snapshotsEqual(currentSnapshot, referenceSnapshot) || previewContext !== referenceContext
 
   // The collection highlighted in the library modal + its live preview.
   const selectedColl = collections.find(c => c.id === selectedId) ?? null
@@ -338,9 +349,17 @@ export function CardsTool() {
     else arr.sort((a, b) => b.savedAt - a.savedAt)
     return arr
   }, [collections, sortMode])
+  // Preview a selected collection in the Content Width it was designed for (its own
+  // saved context), not the editor's current width.
   const selectedPreviewHtml = useMemo(
-    () => (selectedColl ? generateCardsPreviewHtml(snapshotToGenInput(selectedColl.snapshot), { revealHover, context: previewContext }) : ''),
-    [selectedColl, revealHover, previewContext],
+    () =>
+      selectedColl
+        ? generateCardsPreviewHtml(snapshotToGenInput(selectedColl.snapshot), {
+            revealHover,
+            context: selectedColl.previewContext ?? 'left',
+          })
+        : '',
+    [selectedColl, revealHover],
   )
 
   // Resolve the App nav-row portal target after mount (App.tsx renders it as a sibling,
@@ -373,17 +392,18 @@ export function CardsTool() {
     return () => window.removeEventListener('keydown', onKey)
   }, [isFullscreen, collectionsOpen, importOpen, saveAsOpen])
 
-  // Autosave the working draft (debounced) so a refresh or tool switch restores it.
+  // Autosave the working draft (debounced) so a refresh or tool switch restores it,
+  // including the open-file link so a later Save targets the right collection.
   useEffect(() => {
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 1, state, revealHover, previewContext }))
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 1, state, revealHover, previewContext, loadedId }))
       } catch {
         // ignore quota / disabled-storage errors
       }
     }, SAVE_DEBOUNCE_MS)
     return () => clearTimeout(t)
-  }, [state, revealHover, previewContext])
+  }, [state, revealHover, previewContext, loadedId])
 
   // ---- handlers ----
   const updateCard = (id: number, patch: Partial<CardContent>) =>
@@ -421,9 +441,9 @@ export function CardsTool() {
     })
   }
 
-  // Start over: wipe the saved draft and reset everything (incl. preview toggles) to
-  // defaults. The autosave effect then re-persists the defaults.
-  const handleReset = () => {
+  // Wipe the saved draft and reset everything (incl. preview toggles and the open-file
+  // link) to a blank untitled editor. The autosave effect then re-persists the defaults.
+  const resetEditor = () => {
     try {
       localStorage.removeItem(DRAFT_KEY)
     } catch {
@@ -432,8 +452,12 @@ export function CardsTool() {
     setState(initialState())
     setRevealHover(true)
     setPreviewContext('left')
+    setLoadedId(null)
     setCopied(false)
   }
+
+  // Start over: reset to a blank untitled editor.
+  const handleReset = resetEditor
 
   // Reset only the look-settings (type, layout, colors) to defaults, keeping the
   // cards the user has built. (Start over wipes everything; this is the lighter touch.)
@@ -466,13 +490,15 @@ export function CardsTool() {
     setSaveAsOpen(true)
   }
 
-  // Save As: snapshot the editor into a brand-new collection and open it.
+  // Save As: snapshot the editor into a brand-new collection and open it. The current
+  // preview Content Width is saved with it, so it reopens in the layout it was built for.
   const handleSaveAs = (name: string, url: string, description: string) => {
     const coll: CardsCollection = {
       id: newCollectionId(),
       name: name.trim() || 'Untitled',
       savedAt: Date.now(),
       snapshot: toSnapshot(state),
+      previewContext,
       url: url.trim(),
       description: description.trim(),
     }
@@ -486,39 +512,46 @@ export function CardsTool() {
     setSaveAsOpen(false)
   }
 
-  // Save: overwrite the open collection in place; with no file open, fall back to
-  // Save As (the open-file model — never silently overwrites a saved collection).
+  // Inline rename of the open file from the nav row (metadata-only, like Save details).
+  const startRename = () => {
+    if (!loadedId) return
+    setRenameValue(loadedName ?? '')
+    setRenaming(true)
+  }
+  const commitRename = () => {
+    setRenaming(false)
+    if (!loadedId) return
+    const name = renameValue.trim() || 'Untitled'
+    persistCollections(collections.map(c => (c.id === loadedId ? { ...c, name } : c)))
+  }
+
+  // Save: overwrite the open collection in place (cards + preview Content Width). Only
+  // reachable with a file open — untitled drafts use Save As (see the nav controls).
   const handleSave = () => {
-    if (!loadedId) {
-      openSaveAs()
-      return
-    }
+    if (!loadedId) return
     persistCollections(
-      collections.map(c => (c.id === loadedId ? { ...c, snapshot: toSnapshot(state), savedAt: Date.now() } : c)),
+      collections.map(c =>
+        c.id === loadedId ? { ...c, snapshot: toSnapshot(state), previewContext, savedAt: Date.now() } : c,
+      ),
     )
   }
 
-  // Detach from the open collection without changing the cards (an untitled draft).
-  const handleCloseFile = () => setLoadedId(null)
+  // Close the open file: wipe back to a blank untitled editor (confirm if there are
+  // unsaved changes that would be lost).
+  const handleCloseFile = () => {
+    if (isDirty && !window.confirm('Close this collection and discard unsaved changes?')) return
+    resetEditor()
+  }
 
-  // Open (load) a collection. Warn only when there are unsaved changes that aren't
-  // saved to any collection (per the open-file model).
+  // Open (load) a collection: its cards and the preview Content Width it was designed
+  // for. Warn only when there are unsaved changes (per the open-file model).
   const handleOpen = (coll: CardsCollection) => {
     if (isDirty && !window.confirm(`You have unsaved changes that aren’t saved to a collection. Open “${coll.name}” and discard them?`)) return
     setState(stateFromSnapshot(coll.snapshot))
+    setPreviewContext(coll.previewContext ?? 'left')
     setLoadedId(coll.id)
     selectCollection(coll)
     setCollectionsOpen(false)
-  }
-
-  // Overwrite a chosen collection's cards with the current editor, and treat it as
-  // the open file. (Top-bar Save covers the common case; this is the modal equivalent.)
-  const handleOverwrite = (coll: CardsCollection) => {
-    if (!window.confirm(`Overwrite “${coll.name}” with the cards currently in the editor?`)) return
-    persistCollections(
-      collections.map(c => (c.id === coll.id ? { ...c, snapshot: toSnapshot(state), savedAt: Date.now() } : c)),
-    )
-    setLoadedId(coll.id)
   }
 
   // Save the selected collection's metadata only (name / URL / description) — never
@@ -579,6 +612,38 @@ export function CardsTool() {
     )
   }
 
+  // ---- keyboard + unload guards ----
+  // Ctrl/Cmd-S saves the open file (or opens Save As when untitled). A ref keeps the
+  // listener registered once while always running against the latest handlers/state.
+  const saveShortcutRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    saveShortcutRef.current = () => {
+      if (loadedId) handleSave()
+      else openSaveAs()
+    }
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        saveShortcutRef.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Warn before closing/reloading the tab with unsaved edits to an open collection.
+  useEffect(() => {
+    if (!loadedId || !isDirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [loadedId, isDirty])
+
   return (
     <>
 
@@ -586,32 +651,59 @@ export function CardsTool() {
       {navCenter &&
         createPortal(
           <>
-            <span className="text-sm font-medium text-gray-800 max-w-[16rem] truncate" title={loadedName ?? 'Untitled (not saved to a collection)'}>
-              {loadedName ?? 'Untitled'}
-              {isDirty && <span className="text-blue-600 font-bold" title="Unsaved changes"> *</span>}
-            </span>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!!loadedId && !isDirty}
-              title={loadedId ? 'Save changes to the open collection' : 'Save the current cards as a new collection'}
-              className="px-2.5 py-1 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Save
-            </button>
+            {renaming ? (
+              <input
+                type="text"
+                autoFocus
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitRename()
+                  else if (e.key === 'Escape') setRenaming(false)
+                }}
+                className="text-sm font-medium text-gray-800 max-w-[16rem] px-1.5 py-0.5 border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            ) : loadedId ? (
+              <button
+                type="button"
+                onClick={startRename}
+                title="Click to rename this collection"
+                className="text-sm font-medium text-gray-800 max-w-[16rem] truncate hover:underline decoration-dotted"
+              >
+                {loadedName ?? 'Untitled'}
+                {isDirty && <span className="text-blue-600 font-bold" title="Unsaved changes"> *</span>}
+              </button>
+            ) : (
+              <span className="text-sm font-medium text-gray-800 max-w-[16rem] truncate" title="Untitled (not saved to a collection)">
+                Untitled
+                {isDirty && <span className="text-blue-600 font-bold" title="Unsaved changes"> *</span>}
+              </span>
+            )}
+            {loadedId && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!isDirty}
+                title="Save changes to the open collection"
+                className="px-2.5 py-1 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            )}
             <button
               type="button"
               onClick={openSaveAs}
               title="Save the current cards as a new collection"
               className="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50"
             >
-              Save as…
+              Save As…
             </button>
             {loadedId && (
               <button
                 type="button"
                 onClick={handleCloseFile}
-                title="Close the open collection (keeps your cards as an untitled draft)"
+                title="Close the open collection and clear the editor"
                 className="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50"
               >
                 Close
@@ -1100,14 +1192,6 @@ export function CardsTool() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleOverwrite(selectedColl)}
-                          title="Overwrite this collection with the cards currently in the editor"
-                          className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
-                        >
-                          Overwrite with current editor
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => handleCloneCollection(selectedColl)}
                           className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
                         >
@@ -1142,7 +1226,7 @@ export function CardsTool() {
         >
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mt-16" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <h2 className="text-base font-semibold text-gray-800">Save as a new collection</h2>
+              <h2 className="text-base font-semibold text-gray-800">Save As a new collection</h2>
               <button
                 type="button"
                 onClick={() => setSaveAsOpen(false)}

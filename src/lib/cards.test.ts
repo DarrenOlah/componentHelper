@@ -405,6 +405,7 @@ describe('coercePersistedCards', () => {
     },
     revealHover: false,
     previewContext: 'both',
+    loadedId: 'coll-1',
   }
 
   it('returns null for non-objects and missing/invalid state', () => {
@@ -414,18 +415,20 @@ describe('coercePersistedCards', () => {
     expect(coercePersistedCards({ state: { type: 'icon' } })).toBeNull() // no cards array
   })
 
-  it('round-trips a valid draft (snapshot + view toggles)', () => {
+  it('round-trips a valid draft (snapshot + view toggles + open-file link)', () => {
     const d = coercePersistedCards(draft)!
     expect(d.snapshot.type).toBe('callout')
     expect(d.snapshot.cardsPerRow).toBe(2)
     expect(d.revealHover).toBe(false)
     expect(d.previewContext).toBe('both')
+    expect(d.loadedId).toBe('coll-1')
   })
 
-  it('defaults the view toggles when absent or wrong type', () => {
-    const d = coercePersistedCards({ state: draft.state, revealHover: 'yes', previewContext: 'nope' })!
+  it('defaults the view toggles and open-file link when absent or wrong type', () => {
+    const d = coercePersistedCards({ state: draft.state, revealHover: 'yes', previewContext: 'nope', loadedId: 42 })!
     expect(d.revealHover).toBe(true)
     expect(d.previewContext).toBe('left')
+    expect(d.loadedId).toBeNull()
   })
 })
 
@@ -471,6 +474,17 @@ describe('coerceCollections', () => {
     expect(out[1].description).toBe('')
     expect(out[2].url).toBe('')
     expect(out[2].description).toBe('')
+  })
+
+  it('preserves previewContext and defaults it to left when absent or invalid', () => {
+    const out = coerceCollections([
+      { id: 'a', name: 'A', snapshot: snap, previewContext: 'both' },
+      { id: 'b', name: 'B', snapshot: snap }, // legacy entry, no field
+      { id: 'c', name: 'C', snapshot: snap, previewContext: 'nope' }, // invalid
+    ])
+    expect(out[0].previewContext).toBe('both')
+    expect(out[1].previewContext).toBe('left')
+    expect(out[2].previewContext).toBe('left')
   })
 })
 
