@@ -252,7 +252,9 @@ ${varsBlock(v)}
     flex-direction: column;
     text-align: center;
     background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6) 30%);
-    transition: top 0.5s ease-in-out, padding-top 0.5s ease-in-out;
+    /* !important: host skins apply a broad transition (e.g. all .15s) that
+       otherwise overrides this and makes the panel snap up instead of gliding. */
+    transition: top 0.5s ease-in-out, padding-top 0.5s ease-in-out !important;
   }
   .${inst}:hover .${inst}__box,
   .${inst}:focus-within .${inst}__box { top: 0; padding-top: 1rem; }
@@ -269,7 +271,7 @@ ${varsBlock(v)}
     font-weight: 530 !important;
     font-size: 18px !important;
     text-transform: uppercase !important;
-    transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
+    transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out !important;
   }
   .${inst}:hover .${inst}__title,
   .${inst}:focus-within .${inst}__title {
@@ -282,12 +284,18 @@ ${varsBlock(v)}
      from __title so it follows the rest/hover band color. */
   .${inst}__title-link,
   .${inst}__title-link:link,
-  .${inst}__title-link:visited {
+  .${inst}__title-link:visited,
+  .${inst}__title-link:hover,
+  .${inst}__title-link:focus,
+  .${inst}__title-link:active {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     height: 100%;
+    /* Host skins style a:hover with a yellow background; keep the link
+       transparent in every state so only __title drives the band color. */
+    background: transparent !important;
     color: inherit !important;
     text-decoration: none !important;
   }
@@ -323,7 +331,7 @@ ${varsBlock(v)}
     font-size: 18px !important;
   }
   @media (prefers-reduced-motion: reduce) {
-    .${inst}__box { transition: none; }
+    .${inst}__box { transition: none !important; }
   }${reveal}`
 }
 
