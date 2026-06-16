@@ -6,6 +6,8 @@ import {
   makeDefaultCard,
   coercePersistedCards,
   coerceCollections,
+  snapshotToGenInput,
+  snapshotsEqual,
   DEFAULT_CARD_COLORS,
   MAX_CARDS,
   type CardType,
@@ -100,6 +102,34 @@ function stateFromSnapshot(snap: CardsSnapshot): CardsState {
   const { cards, ...settings } = snap
   return { ...settings, cards: cards.map(c => makeCard(c)) }
 }
+
+// The editable snapshot of a CardsState (cards stripped of their render ids): the
+// unit stored by the autosave draft and saved collections, and compared for the
+// open-file unsaved-changes (`*`) indicator.
+function toSnapshot(state: CardsState): CardsSnapshot {
+  return {
+    type: state.type,
+    cardsPerRow: state.cardsPerRow,
+    align: state.align,
+    accent: state.accent,
+    accentText: state.accentText,
+    surface: state.surface,
+    text: state.text,
+    cards: state.cards.map(c => ({
+      imageSrc: c.imageSrc,
+      imageAlt: c.imageAlt,
+      heading: c.heading,
+      body: c.body,
+      buttonText: c.buttonText,
+      ctaText: c.ctaText,
+      buttonHref: c.buttonHref,
+    })),
+  }
+}
+
+// The pristine default snapshot — the "unsaved changes" baseline when no collection
+// is open (so a freshly-started editor reads as clean, but any edit reads as dirty).
+const DEFAULT_SNAPSHOT = toSnapshot(initialState())
 
 interface LoadedDraft {
   state: CardsState
@@ -220,18 +250,30 @@ export function CardsTool() {
   const [revealHover, setRevealHover] = useState(draft.revealHover)
   const [previewContext, setPreviewContext] = useState<PreviewContext>(draft.previewContext)
 
-  // Saved collections (browser-local library) + which one is currently loaded (for Update).
+  // Saved collections (browser-local library). `loadedId` is the *open file*;
+  // `selectedId` is the row highlighted in the library modal (drives its preview).
   const [collections, setCollections] = useState<CardsCollection[]>(loadCollections)
   const [loadedId, setLoadedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [collectionsOpen, setCollectionsOpen] = useState(false)
-  const [collName, setCollName] = useState('')
+  const [sortMode, setSortMode] = useState<'recent' | 'name'>('recent')
+  // Editing buffer for the selected collection's metadata (synced on select).
+  const [detailName, setDetailName] = useState('')
+  const [detailUrl, setDetailUrl] = useState('')
+  const [detailDesc, setDetailDesc] = useState('')
+  // Save As dialog (name + optional site metadata) → creates a new collection.
+  const [saveAsOpen, setSaveAsOpen] = useState(false)
+  const [saveAsName, setSaveAsName] = useState('')
+  const [saveAsUrl, setSaveAsUrl] = useState('')
+  const [saveAsDesc, setSaveAsDesc] = useState('')
   // Import: paste generated HTML back to recover the editable fields.
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
   const [importNote, setImportNote] = useState<string | null>(null)
-  // The App nav-row portal target; resolved after mount (App.tsx renders it).
+  // The App nav-row portal targets; resolved after mount (App.tsx renders them).
   const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
+  const [navCenter, setNavCenter] = useState<HTMLElement | null>(null)
 
   const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
@@ -279,27 +321,57 @@ export function CardsTool() {
   )
   const html = useMemo(() => (isComplete ? generateCardsHtml(genInput) : ''), [isComplete, genInput])
 
+  // ---- open-file model ----
+  // The editor's current snapshot vs the "saved" baseline: the open collection's
+  // snapshot if one is loaded, otherwise the pristine defaults. Drives the `*`.
+  const currentSnapshot = useMemo(() => toSnapshot(state), [state])
+  const loadedColl = collections.find(c => c.id === loadedId) ?? null
+  const loadedName = loadedColl?.name ?? null
+  const referenceSnapshot = loadedColl ? loadedColl.snapshot : DEFAULT_SNAPSHOT
+  const isDirty = !snapshotsEqual(currentSnapshot, referenceSnapshot)
+
+  // The collection highlighted in the library modal + its live preview.
+  const selectedColl = collections.find(c => c.id === selectedId) ?? null
+  const sortedCollections = useMemo(() => {
+    const arr = [...collections]
+    if (sortMode === 'name') arr.sort((a, b) => a.name.localeCompare(b.name))
+    else arr.sort((a, b) => b.savedAt - a.savedAt)
+    return arr
+  }, [collections, sortMode])
+  const selectedPreviewHtml = useMemo(
+    () => (selectedColl ? generateCardsPreviewHtml(snapshotToGenInput(selectedColl.snapshot), { revealHover, context: previewContext }) : ''),
+    [selectedColl, revealHover, previewContext],
+  )
+
   // Resolve the App nav-row portal target after mount (App.tsx renders it as a sibling,
   // so it's in the DOM by the time this runs) — the documented "attach to an external
   // node" use of an effect.
   useEffect(() => {
-    const el = document.getElementById('cards-nav-slot')
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (el) setNavSlot(el)
+    const slot = document.getElementById('cards-nav-slot')
+    const center = document.getElementById('cards-nav-center')
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (slot) setNavSlot(slot)
+    if (center) setNavCenter(center)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
-  // Close the fullscreen overlay / collections / import modals on Escape.
+  // Close the fullscreen overlay / collections / import / save-as modals on Escape.
   useEffect(() => {
-    if (!isFullscreen && !collectionsOpen && !importOpen) return
+    if (!isFullscreen && !collectionsOpen && !importOpen && !saveAsOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      // Escape the Save As dialog first (it stacks above the library modal).
+      if (saveAsOpen) {
+        setSaveAsOpen(false)
+        return
+      }
       setIsFullscreen(false)
       setCollectionsOpen(false)
       setImportOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isFullscreen, collectionsOpen, importOpen])
+  }, [isFullscreen, collectionsOpen, importOpen, saveAsOpen])
 
   // Autosave the working draft (debounced) so a refresh or tool switch restores it.
   useEffect(() => {
@@ -377,48 +449,86 @@ export function CardsTool() {
     }
   }
 
-  // The editable snapshot of the current editor (cards stripped of their render ids).
-  const snapshotFromState = (): CardsSnapshot => ({
-    type,
-    cardsPerRow,
-    align,
-    accent,
-    accentText,
-    surface,
-    text,
-    cards: cards.map(c => ({
-      imageSrc: c.imageSrc,
-      imageAlt: c.imageAlt,
-      heading: c.heading,
-      body: c.body,
-      buttonText: c.buttonText,
-      ctaText: c.ctaText,
-      buttonHref: c.buttonHref,
-    })),
-  })
-
-  const loadedName = collections.find(c => c.id === loadedId)?.name ?? null
-
-  const handleSaveAs = () => {
-    const name = collName.trim() || 'Untitled'
-    const coll: CardsCollection = { id: newCollectionId(), name, savedAt: Date.now(), snapshot: snapshotFromState() }
-    persistCollections([coll, ...collections])
-    setLoadedId(coll.id)
-    setCollName('')
+  // Highlight a collection in the library modal and load its metadata into the edit
+  // buffer (so the details fields are ready without an effect).
+  const selectCollection = (coll: CardsCollection) => {
+    setSelectedId(coll.id)
+    setDetailName(coll.name)
+    setDetailUrl(coll.url ?? '')
+    setDetailDesc(coll.description ?? '')
   }
 
-  const handleLoadCollection = (coll: CardsCollection) => {
-    if (!window.confirm(`Load "${coll.name}"? This replaces the cards currently in the editor.`)) return
+  // Open the Save As dialog, seeding the name (for an open file, suggest a "copy").
+  const openSaveAs = () => {
+    setSaveAsName(loadedName ? `${loadedName} copy` : '')
+    setSaveAsUrl('')
+    setSaveAsDesc('')
+    setSaveAsOpen(true)
+  }
+
+  // Save As: snapshot the editor into a brand-new collection and open it.
+  const handleSaveAs = (name: string, url: string, description: string) => {
+    const coll: CardsCollection = {
+      id: newCollectionId(),
+      name: name.trim() || 'Untitled',
+      savedAt: Date.now(),
+      snapshot: toSnapshot(state),
+      url: url.trim(),
+      description: description.trim(),
+    }
+    persistCollections([coll, ...collections])
+    setLoadedId(coll.id)
+    selectCollection(coll)
+  }
+
+  const submitSaveAs = () => {
+    handleSaveAs(saveAsName, saveAsUrl, saveAsDesc)
+    setSaveAsOpen(false)
+  }
+
+  // Save: overwrite the open collection in place; with no file open, fall back to
+  // Save As (the open-file model — never silently overwrites a saved collection).
+  const handleSave = () => {
+    if (!loadedId) {
+      openSaveAs()
+      return
+    }
+    persistCollections(
+      collections.map(c => (c.id === loadedId ? { ...c, snapshot: toSnapshot(state), savedAt: Date.now() } : c)),
+    )
+  }
+
+  // Detach from the open collection without changing the cards (an untitled draft).
+  const handleCloseFile = () => setLoadedId(null)
+
+  // Open (load) a collection. Warn only when there are unsaved changes that aren't
+  // saved to any collection (per the open-file model).
+  const handleOpen = (coll: CardsCollection) => {
+    if (isDirty && !window.confirm(`You have unsaved changes that aren’t saved to a collection. Open “${coll.name}” and discard them?`)) return
     setState(stateFromSnapshot(coll.snapshot))
     setLoadedId(coll.id)
+    selectCollection(coll)
     setCollectionsOpen(false)
   }
 
-  const handleUpdateCollection = (coll: CardsCollection) => {
+  // Overwrite a chosen collection's cards with the current editor, and treat it as
+  // the open file. (Top-bar Save covers the common case; this is the modal equivalent.)
+  const handleOverwrite = (coll: CardsCollection) => {
+    if (!window.confirm(`Overwrite “${coll.name}” with the cards currently in the editor?`)) return
     persistCollections(
-      collections.map(c => (c.id === coll.id ? { ...c, snapshot: snapshotFromState(), savedAt: Date.now() } : c)),
+      collections.map(c => (c.id === coll.id ? { ...c, snapshot: toSnapshot(state), savedAt: Date.now() } : c)),
     )
     setLoadedId(coll.id)
+  }
+
+  // Save the selected collection's metadata only (name / URL / description) — never
+  // touches its card snapshot or savedAt.
+  const handleSaveDetails = (coll: CardsCollection) => {
+    persistCollections(
+      collections.map(c =>
+        c.id === coll.id ? { ...c, name: detailName.trim() || 'Untitled', url: detailUrl.trim(), description: detailDesc.trim() } : c,
+      ),
+    )
   }
 
   const handleCloneCollection = (coll: CardsCollection) => {
@@ -429,12 +539,14 @@ export function CardsTool() {
       savedAt: Date.now(),
     }
     persistCollections([copy, ...collections])
+    selectCollection(copy)
   }
 
   const handleDeleteCollection = (coll: CardsCollection) => {
     if (!window.confirm(`Delete "${coll.name}"? This can't be undone.`)) return
     persistCollections(collections.filter(c => c.id !== coll.id))
     if (loadedId === coll.id) setLoadedId(null)
+    if (selectedId === coll.id) setSelectedId(null)
   }
 
   // ---- import (parse pasted HTML back into the editor) ----
@@ -468,7 +580,48 @@ export function CardsTool() {
   }
 
   return (
-    <div className="flex flex-col xl:flex-row gap-4 items-start">
+    <>
+
+      {/* ── Open-file controls, portaled into the nav row's centered slot ── */}
+      {navCenter &&
+        createPortal(
+          <>
+            <span className="text-sm font-medium text-gray-800 max-w-[16rem] truncate" title={loadedName ?? 'Untitled (not saved to a collection)'}>
+              {loadedName ?? 'Untitled'}
+              {isDirty && <span className="text-blue-600 font-bold" title="Unsaved changes"> *</span>}
+            </span>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!!loadedId && !isDirty}
+              title={loadedId ? 'Save changes to the open collection' : 'Save the current cards as a new collection'}
+              className="px-2.5 py-1 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={openSaveAs}
+              title="Save the current cards as a new collection"
+              className="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50"
+            >
+              Save as…
+            </button>
+            {loadedId && (
+              <button
+                type="button"
+                onClick={handleCloseFile}
+                title="Close the open collection (keeps your cards as an untitled draft)"
+                className="px-2.5 py-1 rounded-md border border-gray-300 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50"
+              >
+                Close
+              </button>
+            )}
+          </>,
+          navCenter,
+        )}
+
+      <div className="flex flex-col xl:flex-row gap-4 items-start">
 
       {/* ── COLUMN 1: Type & layout + Colors ── */}
       <div className="w-full xl:w-80 shrink-0 space-y-4">
@@ -775,7 +928,12 @@ export function CardsTool() {
             </button>
             <button
               type="button"
-              onClick={() => setCollectionsOpen(true)}
+              onClick={() => {
+                // Auto-select the open collection so its preview shows on open.
+                const open = collections.find(c => c.id === loadedId)
+                if (open) selectCollection(open)
+                setCollectionsOpen(true)
+              }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
             >
               💾 Saved Card Collections
@@ -789,107 +947,262 @@ export function CardsTool() {
           navSlot,
         )}
 
-      {/* ── Collections modal ── */}
+      {/* ── Collections modal (two-pane: list + live preview of the selected one) ── */}
       {collectionsOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center p-4 overflow-auto"
           onClick={() => setCollectionsOpen(false)}
         >
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mt-12" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl mt-8" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <h2 className="text-base font-semibold text-gray-800">Saved card collections</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openSaveAs}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+                >
+                  ＋ Save current as new…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollectionsOpen(false)}
+                  aria-label="Close"
+                  className="text-sm px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {collections.length === 0 ? (
+              <p className="text-xs text-gray-400 py-12 text-center">
+                No saved collections yet. Use <span className="font-medium">Save current as new…</span> above to start a library.
+              </p>
+            ) : (
+              <div className="flex min-h-[20rem]">
+                {/* Left: the library list */}
+                <div className="w-64 shrink-0 border-r border-gray-200 flex flex-col">
+                  <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2 text-[11px] text-gray-500">
+                    <span>Sort:</span>
+                    <select
+                      value={sortMode}
+                      onChange={e => setSortMode(e.target.value as 'recent' | 'name')}
+                      className="border border-gray-300 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="recent">Recently saved</option>
+                      <option value="name">Name (A–Z)</option>
+                    </select>
+                  </div>
+                  <div className="overflow-auto max-h-[60vh] p-2 space-y-1">
+                    {sortedCollections.map(coll => (
+                      <button
+                        key={coll.id}
+                        type="button"
+                        onClick={() => selectCollection(coll)}
+                        onDoubleClick={() => handleOpen(coll)}
+                        title="Click to preview · double-click to open"
+                        className={`w-full text-left rounded-lg border p-2 ${
+                          coll.id === selectedId ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-medium text-gray-800 truncate">{coll.name}</span>
+                          {coll.id === loadedId && (
+                            <span className="shrink-0 px-1 rounded bg-green-100 text-green-700 text-[9px] font-semibold uppercase tracking-wide">
+                              Open
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">
+                          {coll.snapshot.cards.length} card{coll.snapshot.cards.length === 1 ? '' : 's'} · {coll.snapshot.type} ·{' '}
+                          {new Date(coll.savedAt).toLocaleDateString()}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: preview + details + actions for the selected collection */}
+                <div className="flex-1 min-w-0 p-4 overflow-auto max-h-[70vh]">
+                  {selectedColl ? (
+                    <>
+                      <div className="mb-3">
+                        <ScaledPreview
+                          srcDoc={selectedPreviewHtml}
+                          title={`Preview of ${selectedColl.name}`}
+                          boxClass="w-full bg-slate-100 rounded-lg border border-gray-200"
+                        />
+                      </div>
+
+                      {/* Editable details (name / where it's used / notes) */}
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-gray-600 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={detailName}
+                            onChange={e => setDetailName(e.target.value)}
+                            className={inputCls}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                            Used at (URL){' '}
+                            {detailUrl.trim() && (
+                              <a
+                                href={detailUrl.trim()}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="ml-1 text-blue-600 hover:underline font-normal"
+                              >
+                                open ↗
+                              </a>
+                            )}
+                          </label>
+                          <input
+                            type="text"
+                            value={detailUrl}
+                            onChange={e => setDetailUrl(e.target.value)}
+                            placeholder="https://www.army.edu/the-page-using-these-cards"
+                            className={`${inputCls} font-mono`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-gray-600 mb-1">Description / notes</label>
+                          <textarea
+                            value={detailDesc}
+                            onChange={e => setDetailDesc(e.target.value)}
+                            placeholder="Where/why this collection is used (optional)"
+                            rows={2}
+                            className={`${inputCls} resize-y`}
+                          />
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveDetails(selectedColl)}
+                            className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
+                          >
+                            Save details
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpen(selectedColl)}
+                          className="px-2.5 py-1 rounded border border-blue-300 text-blue-700 text-[11px] font-medium hover:bg-blue-100"
+                        >
+                          Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOverwrite(selectedColl)}
+                          title="Overwrite this collection with the cards currently in the editor"
+                          className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
+                        >
+                          Overwrite with current editor
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCloneCollection(selectedColl)}
+                          className="px-2.5 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
+                        >
+                          Clone
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCollection(selectedColl)}
+                          className="ml-auto px-2.5 py-1 rounded border border-red-200 text-red-500 text-[11px] font-medium hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400 py-12 text-center">
+                      Select a collection on the left to preview it. Double-click to open.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Save As dialog (name + optional site metadata → new collection) ── */}
+      {saveAsOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/70 flex items-start justify-center p-4 overflow-auto"
+          onClick={() => setSaveAsOpen(false)}
+        >
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mt-16" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-800">Save as a new collection</h2>
               <button
                 type="button"
-                onClick={() => setCollectionsOpen(false)}
+                onClick={() => setSaveAsOpen(false)}
                 aria-label="Close"
                 className="text-sm px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100"
               >
                 ✕
               </button>
             </div>
-
-            {/* Save current as a new collection */}
-            <div className="px-4 py-3 border-b border-gray-100">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Save the current cards as a new collection</label>
-              <div className="flex gap-2">
+            <div className="px-4 py-3 space-y-2">
+              <div>
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">Name</label>
                 <input
                   type="text"
-                  value={collName}
-                  onChange={e => setCollName(e.target.value)}
+                  autoFocus
+                  value={saveAsName}
+                  onChange={e => setSaveAsName(e.target.value)}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') handleSaveAs()
+                    if (e.key === 'Enter') submitSaveAs()
                   }}
                   placeholder="Collection name"
                   className={inputCls}
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">Used at (URL) — optional</label>
+                <input
+                  type="text"
+                  value={saveAsUrl}
+                  onChange={e => setSaveAsUrl(e.target.value)}
+                  placeholder="https://www.army.edu/the-page-using-these-cards"
+                  className={`${inputCls} font-mono`}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">Description / notes — optional</label>
+                <textarea
+                  value={saveAsDesc}
+                  onChange={e => setSaveAsDesc(e.target.value)}
+                  placeholder="Where/why this collection is used"
+                  rows={2}
+                  className={`${inputCls} resize-y`}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={handleSaveAs}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+                  onClick={() => setSaveAsOpen(false)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submitSaveAs}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
                 >
                   Save
                 </button>
               </div>
-              {loadedName && (
-                <p className="mt-1.5 text-[11px] text-gray-400">
-                  Loaded from “{loadedName}” — use <span className="font-medium">Update</span> on it below to overwrite.
-                </p>
-              )}
-            </div>
-
-            {/* Saved list */}
-            <div className="max-h-[50vh] overflow-auto px-4 py-3 space-y-2">
-              {collections.length === 0 ? (
-                <p className="text-xs text-gray-400 py-6 text-center">
-                  No saved collections yet. Save the current cards above to start a library.
-                </p>
-              ) : (
-                collections.map(coll => (
-                  <div
-                    key={coll.id}
-                    className={`rounded-lg border p-2.5 ${coll.id === loadedId ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-800 truncate">{coll.name}</div>
-                      <div className="text-[10px] text-gray-400">
-                        {coll.snapshot.cards.length} card{coll.snapshot.cards.length === 1 ? '' : 's'} · {coll.snapshot.type} · saved{' '}
-                        {new Date(coll.savedAt).toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleLoadCollection(coll)}
-                        className="px-2 py-1 rounded border border-blue-300 text-blue-700 text-[11px] font-medium hover:bg-blue-100"
-                      >
-                        Load
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateCollection(coll)}
-                        title="Overwrite this collection with the current editor"
-                        className="px-2 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
-                      >
-                        Update
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCloneCollection(coll)}
-                        className="px-2 py-1 rounded border border-gray-300 text-gray-600 text-[11px] font-medium hover:bg-gray-50"
-                      >
-                        Clone
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCollection(coll)}
-                        className="ml-auto px-2 py-1 rounded border border-red-200 text-red-500 text-[11px] font-medium hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         </div>
@@ -954,6 +1267,7 @@ export function CardsTool() {
         </div>
       )}
 
-    </div>
+      </div>{/* ── END editor row ── */}
+    </>
   )
 }

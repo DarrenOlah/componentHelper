@@ -10,9 +10,12 @@ import {
   coercePersistedCards,
   coerceSnapshot,
   coerceCollections,
+  snapshotToGenInput,
+  snapshotsEqual,
   makeDefaultCard,
   MAX_CARDS,
   DEFAULT_CARD_COLORS,
+  type CardsSnapshot,
 } from './cards'
 import { safeImageSrc, IMAGE_PLACEHOLDER } from './sanitize'
 
@@ -454,5 +457,82 @@ describe('coerceCollections', () => {
     expect(out.map(c => c.id)).toEqual(['c'])
     expect(out[0].name).toBe('Untitled')
     expect(out[0].savedAt).toBe(0)
+  })
+
+  it('preserves url/description and defaults them to empty when absent or non-string', () => {
+    const out = coerceCollections([
+      { id: 'a', name: 'A', snapshot: snap, url: 'https://army.edu/page', description: 'home row' },
+      { id: 'b', name: 'B', snapshot: snap }, // no metadata
+      { id: 'c', name: 'C', snapshot: snap, url: 42, description: { x: 1 } }, // non-string
+    ])
+    expect(out[0].url).toBe('https://army.edu/page')
+    expect(out[0].description).toBe('home row')
+    expect(out[1].url).toBe('')
+    expect(out[1].description).toBe('')
+    expect(out[2].url).toBe('')
+    expect(out[2].description).toBe('')
+  })
+})
+
+describe('snapshotToGenInput', () => {
+  const snap: CardsSnapshot = {
+    type: 'hover',
+    cardsPerRow: 4,
+    align: 'center',
+    accent: '#123456',
+    accentText: '#ffffff',
+    surface: '#000000',
+    text: '#eeeeee',
+    cards: [{ ...baseInput.cards[0] }],
+  }
+
+  it('maps settings, colors, and cards to generator input', () => {
+    const gi = snapshotToGenInput(snap)
+    expect(gi.type).toBe('hover')
+    expect(gi.cardsPerRow).toBe(4)
+    expect(gi.align).toBe('center')
+    expect(gi.colors).toEqual({ accent: '#123456', accentText: '#ffffff', surface: '#000000', text: '#eeeeee' })
+    expect(gi.cards).toHaveLength(1)
+    expect(gi.cards[0]).toMatchObject({ heading: 'Alpha', buttonHref: 'https://example.com/a' })
+  })
+
+  it('produces input that generateCardsHtml can render', () => {
+    expect(() => generateCardsHtml(snapshotToGenInput(snap))).not.toThrow()
+  })
+})
+
+describe('snapshotsEqual', () => {
+  const base: CardsSnapshot = {
+    type: 'icon',
+    cardsPerRow: 3,
+    align: 'left',
+    accent: '#FFCC33',
+    accentText: '#000000',
+    surface: '#000000',
+    text: '#FFFFFF',
+    cards: [{ ...baseInput.cards[0] }, { ...baseInput.cards[1] }],
+  }
+  const clone = (): CardsSnapshot => ({ ...base, cards: base.cards.map(c => ({ ...c })) })
+
+  it('is true for value-equal snapshots (different object identity)', () => {
+    expect(snapshotsEqual(base, clone())).toBe(true)
+  })
+
+  it('is false when a setting differs', () => {
+    expect(snapshotsEqual(base, { ...clone(), align: 'center' })).toBe(false)
+    expect(snapshotsEqual(base, { ...clone(), cardsPerRow: 4 })).toBe(false)
+    expect(snapshotsEqual(base, { ...clone(), accent: '#000000' })).toBe(false)
+  })
+
+  it('is false when a card field differs', () => {
+    const other = clone()
+    other.cards[1] = { ...other.cards[1], buttonText: 'changed' }
+    expect(snapshotsEqual(base, other)).toBe(false)
+  })
+
+  it('is false when the card count differs', () => {
+    const other = clone()
+    other.cards = other.cards.slice(0, 1)
+    expect(snapshotsEqual(base, other)).toBe(false)
   })
 })

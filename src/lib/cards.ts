@@ -357,12 +357,17 @@ export function coercePersistedCards(raw: unknown): PersistedCardsDraft | null {
 }
 
 // A named, saved set of cards (browser-local library). `snapshot` is the editable
-// state; `savedAt` is an epoch-ms stamp for display/sort.
+// state; `savedAt` is an epoch-ms stamp for display/sort. `url`/`description` are
+// optional site metadata — a reminder of where the collection is used on the live
+// site. They describe the collection, not the cards, so they're outside `snapshot`
+// and never affect generated HTML or unsaved-changes detection.
 export interface CardsCollection {
   id: string
   name: string
   savedAt: number
   snapshot: CardsSnapshot
+  url?: string
+  description?: string
 }
 // Validate the stored collections array, dropping any entry that isn't a usable
 // snapshot or is missing an id (app always writes one).
@@ -379,7 +384,52 @@ export function coerceCollections(raw: unknown): CardsCollection[] {
       name: str(item.name, 'Untitled'),
       savedAt: typeof item.savedAt === 'number' ? item.savedAt : 0,
       snapshot,
+      url: str(item.url),
+      description: str(item.description),
     })
   }
   return out
+}
+
+// ---- Snapshot helpers (preview + unsaved-changes detection) ---------------
+
+// Map a stored snapshot to generator input, so a saved collection can be previewed
+// with generateCardsPreviewHtml without first loading it into the editor.
+export function snapshotToGenInput(snap: CardsSnapshot): GenerateCardsInput {
+  return {
+    type: snap.type,
+    cardsPerRow: snap.cardsPerRow,
+    align: snap.align,
+    colors: { accent: snap.accent, accentText: snap.accentText, surface: snap.surface, text: snap.text },
+    cards: snap.cards.map(c => ({ ...c })),
+  }
+}
+
+// Value-equality of two snapshots (settings + every card field), independent of key
+// order. Powers the open-file `*` indicator: editor snapshot vs the open collection's.
+export function snapshotsEqual(a: CardsSnapshot, b: CardsSnapshot): boolean {
+  if (
+    a.type !== b.type ||
+    a.cardsPerRow !== b.cardsPerRow ||
+    a.align !== b.align ||
+    a.accent !== b.accent ||
+    a.accentText !== b.accentText ||
+    a.surface !== b.surface ||
+    a.text !== b.text ||
+    a.cards.length !== b.cards.length
+  ) {
+    return false
+  }
+  return a.cards.every((c, i) => {
+    const o = b.cards[i]
+    return (
+      c.imageSrc === o.imageSrc &&
+      c.imageAlt === o.imageAlt &&
+      c.heading === o.heading &&
+      c.body === o.body &&
+      c.buttonText === o.buttonText &&
+      c.ctaText === o.ctaText &&
+      c.buttonHref === o.buttonHref
+    )
+  })
 }
