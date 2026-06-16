@@ -201,6 +201,20 @@ export function CardsTool() {
   const validCards = cards.filter(c => c.buttonText.trim() !== '' && c.buttonHref.trim() !== '')
   const isComplete = cards.length > 0 && validCards.length === cards.length
 
+  // Whether the look-settings (type/layout/colors) are already at their defaults —
+  // used to hide the "Reset settings" affordance when there's nothing to reset
+  // (mirrors ColorField's per-swatch reset behavior).
+  const d = defaultSettings()
+  const eqHex = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+  const settingsAreDefault =
+    type === d.type &&
+    cardsPerRow === d.cardsPerRow &&
+    align === d.align &&
+    eqHex(accent, d.accent) &&
+    eqHex(accentText, d.accentText) &&
+    eqHex(surface, d.surface) &&
+    eqHex(text, d.text)
+
   const genInput: GenerateCardsInput = useMemo(
     () => ({
       type,
@@ -298,6 +312,10 @@ export function CardsTool() {
     setCopied(false)
   }
 
+  // Reset only the look-settings (type, layout, colors) to defaults, keeping the
+  // cards the user has built. (Start over wipes everything; this is the lighter touch.)
+  const handleResetSettings = () => setState(s => ({ ...s, ...defaultSettings() }))
+
   return (
     <div className="flex flex-col xl:flex-row gap-4 items-start">
 
@@ -306,7 +324,19 @@ export function CardsTool() {
 
         {/* Section 1: Type & layout */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <SectionLabel number={1} title="Type & layout" done={true} />
+          <div className="flex items-center justify-between gap-2">
+            <SectionLabel number={1} title="Type & layout" done={true} />
+            {!settingsAreDefault && (
+              <button
+                type="button"
+                onClick={handleResetSettings}
+                title="Reset type, layout, and colors to defaults (keeps your cards)"
+                className="mb-3 shrink-0 text-xs font-medium text-gray-500 hover:text-blue-600 hover:underline"
+              >
+                ↺ Reset settings
+              </button>
+            )}
+          </div>
 
           <label className="block text-xs font-medium text-gray-700 mb-1">Card type</label>
           <div className="flex gap-2">
