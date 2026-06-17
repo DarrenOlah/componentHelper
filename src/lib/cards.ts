@@ -80,11 +80,11 @@ export function makeDefaultCard(): CardContent {
   return {
     imageSrc: '',
     imageAlt: '',
-    heading: 'Program name',
+    heading: '',
     body: '',
-    buttonText: 'Learn more',
+    buttonText: '',
     ctaText: '',
-    buttonHref: '#',
+    buttonHref: '',
   }
 }
 
