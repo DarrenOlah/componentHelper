@@ -17,7 +17,8 @@ import {
 } from './cards'
 import { IMAGE_PLACEHOLDER } from './sanitize'
 
-const PER_ROW_FROM_MD: Record<string, 2 | 3 | 4> = { '6': 2, '4': 3, '3': 4 }
+// Full count is carried by col-lg-* (3-up/4-up); 2-up tops out at col-md-6.
+const PER_ROW_FROM_LG: Record<string, 3 | 4> = { '4': 3, '3': 4 }
 
 // Read a CSS custom property's value out of raw CSS text. Anchored on the `:` so
 // `--au-gold` never matches the derived `--au-gold-hover`.
@@ -38,11 +39,13 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   const cardEls = Array.from(doc.getElementsByClassName(base))
   if (cardEls.length === 0) return null
 
-  // cards-per-row from the card's Bootstrap column class (col-md-6/4/3 → 2/3/4).
+  // cards-per-row from the card's Bootstrap column class. The full count lives on
+  // col-lg-4/3 (→ 3/4); 2-up has only col-md-6 (→ 2). Check lg first, then fall back.
   let cardsPerRow: 2 | 3 | 4 = 3
-  const col = cardEls[0].closest('[class*="col-md-"]')
-  const md = (col?.className.match(/col-md-(\d+)/) || [])[1]
-  if (md && PER_ROW_FROM_MD[md]) cardsPerRow = PER_ROW_FROM_MD[md]
+  const lgCol = cardEls[0].closest('[class*="col-lg-"]')
+  const lg = (lgCol?.className.match(/col-lg-(\d+)/) || [])[1]
+  if (lg && PER_ROW_FROM_LG[lg]) cardsPerRow = PER_ROW_FROM_LG[lg]
+  else if (cardEls[0].closest('.col-md-6')) cardsPerRow = 2
 
   // alignment from the row class.
   const row = cardEls[0].closest('[class*="row"]')

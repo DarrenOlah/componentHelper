@@ -220,17 +220,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: var(--au-band);
+    min-height: var(--au-band);
     box-sizing: border-box;
-    padding: 0 12px;
+    padding: 8px 12px;
     background: var(--au-gold) !important;
     color: var(--au-ink) !important;
     font-family: "GI-530", system-ui, Arial, sans-serif !important;
     font-weight: 530 !important;
     font-size: 18px !important;
+    line-height: 1.2;
     text-transform: uppercase !important;
     text-align: center;
     text-decoration: none !important;   /* host adds underlines to links */
+    overflow-wrap: break-word;          /* long words wrap; band grows to fit */
+    word-break: break-word;
+    text-wrap: balance;
   }
   .au-icon-card__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
   .au-icon-card__btn:hover,
@@ -310,19 +314,23 @@
     left: 0;
     width: 100%;               /* full width of the card */
     box-sizing: border-box;
-    height: var(--au-band);
+    min-height: var(--au-band);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 12px;
+    padding: 8px 12px;
     background: var(--au-gold) !important;
     color: var(--au-ink) !important;
     font-family: "GI-530", system-ui, Arial, sans-serif !important;
     font-weight: 530 !important;
     font-size: 18px !important;
+    line-height: 1.2;
     text-transform: uppercase !important;
     text-align: center;
     text-decoration: none !important;   /* host adds underlines to links */
+    overflow-wrap: break-word;          /* long words wrap; band grows upward to fit */
+    word-break: break-word;
+    text-wrap: balance;
   }
   .au-callout-card__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
   .au-callout-card__btn:hover,
@@ -514,9 +522,10 @@
 <!-- Icon-card row on the theme's Bootstrap 4 grid. Paste the whole block into ONE HTML
      module (keep a row together in one module). The .row equal-heights its columns and
      d-flex lets each card fill its column — no custom layout CSS to ship or explain.
-     Change the count by editing the column class: col-md-4 = 3-up, col-md-6 = 2-up,
-     col-md-3 = 4-up. The container-fluid offsets the row's negative gutters so it can't
-     overflow whatever the host drops it into. -->
+     Change the count by editing the column class (graduated breakpoints — 1 col on
+     phones, 2 on tablets, full count on desktop): col-md-6 = 2-up, col-md-6 col-lg-4
+     = 3-up, col-md-6 col-lg-3 = 4-up. The container-fluid offsets the row's negative
+     gutters so it can't overflow whatever the host drops it into. -->
 <style type="text/css">
   .au-icon-card {
     --au-gold: #FFCC33;
@@ -575,17 +584,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: var(--au-band);
+    min-height: var(--au-band);
     box-sizing: border-box;
-    padding: 0 12px;
+    padding: 8px 12px;
     background: var(--au-gold) !important;
     color: var(--au-ink) !important;
     font-family: "GI-530", system-ui, Arial, sans-serif !important;
     font-weight: 530 !important;
     font-size: 18px !important;
+    line-height: 1.2;
     text-transform: uppercase !important;
     text-align: center;
     text-decoration: none !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    text-wrap: balance;
   }
   .au-icon-card__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
   .au-icon-card__btn:hover,
@@ -609,17 +622,17 @@
   .au-icon-card-grid > .row { margin-right: 0; margin-left: 0; gap: 15px; }
   .au-icon-card-grid > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }
   .au-icon-card-grid > .row > .col-12 { flex: 0 0 100%; max-width: 100%; }
-  @media (min-width: 576px) {
-    .au-icon-card-grid > .row > .col-sm-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }
-  }
   @media (min-width: 768px) {
-    .au-icon-card-grid > .row > .col-md-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }
+    .au-icon-card-grid > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }
+  }
+  @media (min-width: 992px) {
+    .au-icon-card-grid > .row > .col-lg-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }
   }
 </style>
 
 <div class="container-fluid au-icon-card-grid">
   <div class="row">
-    <div class="col-12 col-md-4 d-flex">
+    <div class="col-12 col-md-6 col-lg-4 d-flex">
       <div class="au-icon-card">
         <img class="au-icon-card__icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23000'/%3E%3C/svg%3E" alt="Card icon" />
         <h3 class="au-icon-card__title">Program one</h3>
@@ -627,7 +640,7 @@
         <a class="au-icon-card__btn" href="#">Learn more</a>
       </div>
     </div>
-    <div class="col-12 col-md-4 d-flex">
+    <div class="col-12 col-md-6 col-lg-4 d-flex">
       <div class="au-icon-card">
         <img class="au-icon-card__icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23000'/%3E%3C/svg%3E" alt="Card icon" />
         <h3 class="au-icon-card__title">Program two</h3>
@@ -635,7 +648,7 @@
         <a class="au-icon-card__btn" href="#">Learn more</a>
       </div>
     </div>
-    <div class="col-12 col-md-4 d-flex">
+    <div class="col-12 col-md-6 col-lg-4 d-flex">
       <div class="au-icon-card">
         <img class="au-icon-card__icon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Crect width='90' height='90' fill='%23000'/%3E%3C/svg%3E" alt="Card icon" />
         <h3 class="au-icon-card__title">Program three</h3>

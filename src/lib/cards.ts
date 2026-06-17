@@ -128,10 +128,12 @@ export function scopeId(type: CardType, colors: CardColors): string {
 }
 
 // ---- Bootstrap column class for the chosen cards-per-row -------------------
+// Graduated breakpoints: 1 col < md (768), 2 cols at md, full count at lg (992).
+// 2-up reaches its final count at md, so it has no col-lg-* class.
 const COLUMN_CLASSES: Record<2 | 3 | 4, string> = {
-  2: 'col-12 col-sm-6 col-md-6',
-  3: 'col-12 col-sm-6 col-md-4',
-  4: 'col-12 col-sm-6 col-md-3',
+  2: 'col-12 col-md-6',
+  3: 'col-12 col-md-6 col-lg-4',
+  4: 'col-12 col-md-6 col-lg-3',
 }
 export function columnClass(cardsPerRow: 2 | 3 | 4): string {
   return COLUMN_CLASSES[cardsPerRow] ?? COLUMN_CLASSES[3]

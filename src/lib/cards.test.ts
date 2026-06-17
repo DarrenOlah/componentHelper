@@ -133,6 +133,15 @@ describe('scopeId — determinism & isolation', () => {
     expect(out).not.toContain('.au-icon-card:focus-within')
   })
 
+  it('lets the gold band grow to fit wrapped text (min-height, not fixed height)', () => {
+    const out = gen()
+    expect(out).toContain('min-height: var(--au-band);')
+    // the band must not be a *fixed* height (would clip wrapped text); the leading
+    // space distinguishes a `height:` property from `min-height:`.
+    expect(out).not.toContain(' height: var(--au-band);')
+    expect(out).toContain('overflow-wrap: break-word;')
+  })
+
   it('two differently-colored blocks do not share a scope id', () => {
     const goldId = scopeId('icon', baseInput.colors)
     const blue = gen({ colors: { ...baseInput.colors, accent: '#00427E' } })
@@ -146,14 +155,14 @@ describe('scopeId — determinism & isolation', () => {
 
 describe('columnClass + layout', () => {
   it('maps cards-per-row to Bootstrap columns', () => {
-    expect(columnClass(2)).toBe('col-12 col-sm-6 col-md-6')
-    expect(columnClass(3)).toBe('col-12 col-sm-6 col-md-4')
-    expect(columnClass(4)).toBe('col-12 col-sm-6 col-md-3')
+    expect(columnClass(2)).toBe('col-12 col-md-6')
+    expect(columnClass(3)).toBe('col-12 col-md-6 col-lg-4')
+    expect(columnClass(4)).toBe('col-12 col-md-6 col-lg-3')
   })
 
   it('emits one column div per card, in order, with d-flex', () => {
     const out = gen({ cardsPerRow: 4 })
-    const cols = out.match(/class="col-12 col-sm-6 col-md-3 d-flex"/g) ?? []
+    const cols = out.match(/class="col-12 col-md-6 col-lg-3 d-flex"/g) ?? []
     expect(cols).toHaveLength(2)
     expect(out.indexOf('Alpha')).toBeLessThan(out.indexOf('Beta'))
   })
@@ -182,18 +191,24 @@ describe('inter-card gap (uniform 15px, flush with text edges)', () => {
     expect(out).toContain(`.${g} > .row { margin-right: 0; margin-left: 0; gap: 15px; }`)
     // column gutters gone; gap (not padding) separates the cards
     expect(out).toContain(`.${g} > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }`)
-    // 3 columns + 2 gaps sum to exactly 100% (no overflow, outer cards flush)
-    expect(out).toContain(`.${g} > .row > .col-md-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }`)
+    // 3 columns + 2 gaps sum to exactly 100% (no overflow, outer cards flush);
+    // the full count applies at the lg breakpoint.
+    expect(out).toContain(`.${g} > .row > .col-lg-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }`)
+    // the intermediate md step is always 2 columns
+    expect(out).toContain(`.${g} > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }`)
   })
 
   it('sizes the desktop columns for the chosen cards-per-row', () => {
     const id = scopeId('icon', baseInput.colors) // scopeId ignores cardsPerRow
+    // 4-up reaches its full count at lg (col-lg-3)
     expect(gen({ cardsPerRow: 4 })).toContain(
-      `.au-icon-card--${id}-grid > .row > .col-md-3 { flex: 0 0 calc((100% - 45px) / 4); max-width: calc((100% - 45px) / 4); }`,
+      `.au-icon-card--${id}-grid > .row > .col-lg-3 { flex: 0 0 calc((100% - 45px) / 4); max-width: calc((100% - 45px) / 4); }`,
     )
+    // 2-up tops out at md (col-md-6) and has no lg rule
     expect(gen({ cardsPerRow: 2 })).toContain(
       `.au-icon-card--${id}-grid > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }`,
     )
+    expect(gen({ cardsPerRow: 2 })).not.toContain('@media (min-width: 992px)')
   })
 
   it('callout and hover cards no longer carry top/bottom margins', () => {

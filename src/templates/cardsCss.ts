@@ -41,7 +41,9 @@ const F400 = '"GI-400", system-ui, Arial, sans-serif'
 // the gaps separate them. Change this one value to retune (e.g. back to 30).
 export const CARD_GAP_PX = 15
 
-const MD_COL: Record<2 | 3 | 4, string> = { 2: 'col-md-6', 3: 'col-md-4', 4: 'col-md-3' }
+// The full-count column class applies at the lg breakpoint (992px). 2-up reaches
+// its full count already at md (col-md-6), so it has no lg entry.
+const LG_COL: Record<3 | 4, string> = { 3: 'col-lg-4', 4: 'col-lg-3' }
 
 // Scoped layout override applied only under our own grid wrapper class (never the
 // page's other rows). We deliberately abandon Bootstrap's negative-margin gutter
@@ -53,22 +55,30 @@ const MD_COL: Record<2 | 3 | 4, string> = { 2: 'col-md-6', 3: 'col-md-4', 4: 'co
 //     only BETWEEN cards, so the outer cards stay flush — no overflow);
 //   • size each column with calc() so N columns + (N-1) gaps sum to exactly 100%.
 // Selectors are scoped + specific enough to beat the host's `.row`/`.col-*` rules.
+// Breakpoint progression (graduated to delay density on small screens):
+//   • < 768px  → 1 column   (col-12, the default below)
+//   • ≥ 768px  → 2 columns  (col-md-6 — the final count for 2-up)
+//   • ≥ 992px  → full count (col-lg-4 / col-lg-3 — only for 3-up / 4-up)
 export function cardGridCss(gridClass: string, cardsPerRow: 2 | 3 | 4, gap = CARD_GAP_PX): string {
-  const mdCol = MD_COL[cardsPerRow]
   // Flex-basis for n equal columns sharing (n-1) gaps across a 100% row.
   const w = (n: number) => `calc((100% - ${(n - 1) * gap}px) / ${n})`
+  // 3-up/4-up step up to their full count at lg; 2-up is already done at md.
+  const lgRule =
+    cardsPerRow > 2
+      ? `
+  @media (min-width: 992px) {
+    .${gridClass} > .row > .${LG_COL[cardsPerRow as 3 | 4]} { flex: 0 0 ${w(cardsPerRow)}; max-width: ${w(cardsPerRow)}; }
+  }`
+      : ''
   // Compound selector + !important so the zeroed gutters beat the host theme's
   // single-class `.container-fluid { padding: 0 15px }` regardless of load order.
   return `.container-fluid.${gridClass} { padding-right: 0 !important; padding-left: 0 !important; }
   .${gridClass} > .row { margin-right: 0; margin-left: 0; gap: ${gap}px; }
   .${gridClass} > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }
   .${gridClass} > .row > .col-12 { flex: 0 0 100%; max-width: 100%; }
-  @media (min-width: 576px) {
-    .${gridClass} > .row > .col-sm-6 { flex: 0 0 ${w(2)}; max-width: ${w(2)}; }
-  }
   @media (min-width: 768px) {
-    .${gridClass} > .row > .${mdCol} { flex: 0 0 ${w(cardsPerRow)}; max-width: ${w(cardsPerRow)}; }
-  }`
+    .${gridClass} > .row > .col-md-6 { flex: 0 0 ${w(2)}; max-width: ${w(2)}; }
+  }${lgRule}`
 }
 
 // ---- Icon card: overhanging square, optional heading/body, full-bleed button --
@@ -125,17 +135,21 @@ ${varsBlock(v)}
     display: flex;
     align-items: center;
     justify-content: center;
-    height: var(--au-band);
+    min-height: var(--au-band);
     box-sizing: border-box;
-    padding: 0 12px;
+    padding: 8px 12px;
     background: var(--au-gold) !important;
     color: var(--au-ink) !important;
     font-family: ${F530} !important;
     font-weight: 530 !important;
     font-size: 18px !important;
+    line-height: 1.2;
     text-transform: uppercase !important;
     text-align: center;
     text-decoration: none !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    text-wrap: balance;
   }
   .${inst}__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
   .${inst}__btn:hover,
@@ -177,19 +191,23 @@ ${varsBlock(v)}
     left: 0;
     width: 100%;
     box-sizing: border-box;
-    height: var(--au-band);
+    min-height: var(--au-band);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 12px;
+    padding: 8px 12px;
     background: var(--au-gold) !important;
     color: var(--au-ink) !important;
     font-family: ${F530} !important;
     font-weight: 530 !important;
     font-size: 18px !important;
+    line-height: 1.2;
     text-transform: uppercase !important;
     text-align: center;
     text-decoration: none !important;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    text-wrap: balance;
   }
   .${inst}__btn:hover { background: var(--au-gold-hover) !important; cursor: pointer; }
   .${inst}__btn:hover,
@@ -366,6 +384,10 @@ export const PREVIEW_BOOTSTRAP_GRID_CSS = `.container-fluid {
     .col-md-6 { flex: 0 0 50%; max-width: 50%; }
     .col-md-4 { flex: 0 0 33.333333%; max-width: 33.333333%; }
     .col-md-3 { flex: 0 0 25%; max-width: 25%; }
+  }
+  @media (min-width: 992px) {
+    .col-lg-4 { flex: 0 0 33.333333%; max-width: 33.333333%; }
+    .col-lg-3 { flex: 0 0 25%; max-width: 25%; }
   }`
 
 // Preview-only chrome that simulates the host page's sidebar layout, so the cards
