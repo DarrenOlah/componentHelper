@@ -17,8 +17,8 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       align: 'center',
       colors,
       cards: [
-        { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: '', buttonHref: 'https://example.com/a' },
-        { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: '', buttonHref: 'https://example.com/b' },
+        { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: '', buttonHref: 'https://example.com/a', external: true },
+        { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: '', buttonHref: 'https://example.com/b', external: false },
       ],
     }
     const out = roundTrip(input)!
@@ -35,7 +35,9 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       body: 'Body A',
       buttonText: 'Go A',
       buttonHref: 'https://example.com/a',
+      external: true, // target="_blank" recovered
     })
+    expect(out.cards[1].external).toBe(false) // internal link stays internal
   })
 
   it('callout cards: image + button only', () => {
@@ -44,7 +46,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cardsPerRow: 2,
       align: 'left',
       colors,
-      cards: [{ imageSrc: '/x.png', imageAlt: 'X', heading: '', body: '', buttonText: 'Open', ctaText: '', buttonHref: '/go' }],
+      cards: [{ imageSrc: '/x.png', imageAlt: 'X', heading: '', body: '', buttonText: 'Open', ctaText: '', buttonHref: '/go', external: false }],
     }
     const out = roundTrip(input)!
     expect(out.type).toBe('callout')
@@ -58,7 +60,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cardsPerRow: 3,
       align: 'left',
       colors,
-      cards: [{ imageSrc: '/y.png', imageAlt: 'Y', heading: '', body: 'Desc', buttonText: 'Band', ctaText: 'More', buttonHref: '/h' }],
+      cards: [{ imageSrc: '/y.png', imageAlt: 'Y', heading: '', body: 'Desc', buttonText: 'Band', ctaText: 'More', buttonHref: '/h', external: false }],
     }
     const out = roundTrip(input)!
     expect(out.type).toBe('hover')
@@ -79,7 +81,7 @@ describe('parseCardsHtml — best-effort degradation', () => {
     cardsPerRow: 3,
     align: 'left',
     colors: { accent: '#123456', accentText: '#ffffff', surface: '#222222', text: '#eeeeee' },
-    cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: 'H', body: 'B', buttonText: 'Go', ctaText: '', buttonHref: '/a' }],
+    cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: 'H', body: 'B', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
   }
 
   it('falls back to default colors when the <style> block is missing (markup-only paste)', () => {

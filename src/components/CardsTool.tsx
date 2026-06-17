@@ -8,6 +8,8 @@ import {
   coerceCollections,
   snapshotToGenInput,
   snapshotsEqual,
+  splitAbsoluteHref,
+  isRelativeHref,
   DEFAULT_CARD_COLORS,
   MAX_CARDS,
   type CardType,
@@ -123,6 +125,7 @@ function toSnapshot(state: CardsState): CardsSnapshot {
       buttonText: c.buttonText,
       ctaText: c.ctaText,
       buttonHref: c.buttonHref,
+      external: c.external,
     })),
   }
 }
@@ -282,6 +285,10 @@ export function CardsTool() {
   // The App nav-row portal targets; resolved after mount (App.tsx renders them).
   const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
   const [navCenter, setNavCenter] = useState<HTMLElement | null>(null)
+  // Transient receipt after auto-stripping an absolute origin off an internal link
+  // (on blur). Holds the pre-strip URL so Undo / "Make external" can restore it.
+  // One at a time — editing another field's URL just moves the receipt.
+  const [stripped, setStripped] = useState<{ cardId: number; original: string; origin: string } | null>(null)
 
   const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
 
@@ -310,7 +317,7 @@ export function CardsTool() {
       cardsPerRow,
       align,
       colors: { accent, accentText, surface, text },
-      cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, ctaText, buttonHref }) => ({
+      cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, ctaText, buttonHref, external }) => ({
         imageSrc,
         imageAlt,
         heading,
@@ -318,6 +325,7 @@ export function CardsTool() {
         buttonText,
         ctaText,
         buttonHref,
+        external,
       })),
     }),
     [type, cardsPerRow, align, accent, accentText, surface, text, cards],
@@ -883,10 +891,72 @@ export function CardsTool() {
                 <input
                   type="text"
                   value={card.buttonHref}
-                  onChange={e => updateCard(card.id, { buttonHref: e.target.value })}
+                  onChange={e => {
+                    updateCard(card.id, { buttonHref: e.target.value })
+                    if (stripped?.cardId === card.id) setStripped(null) // a manual edit dismisses the receipt
+                  }}
+                  onBlur={() => {
+                    // Internal links should be root-relative so they survive site moves
+                    // (staging↔prod, www↔non-www). On blur, auto-strip an absolute origin
+                    // and offer to undo / reclassify as external. Skip when already external.
+                    if (card.external) return
+                    const split = splitAbsoluteHref(card.buttonHref)
+                    if (!split) return
+                    updateCard(card.id, { buttonHref: split.rootRelative })
+                    setStripped({ cardId: card.id, original: card.buttonHref, origin: split.origin })
+                  }}
                   placeholder="Button URL * (https://… or /Portals/…)"
                   className={`${inputCls} font-mono`}
                 />
+                <label className="flex items-center gap-1.5 text-[11px] text-gray-600 mt-1.5">
+                  <input
+                    type="checkbox"
+                    checked={card.external}
+                    onChange={e => {
+                      // Re-marking a just-stripped link as external means its origin
+                      // belonged after all — restore the full URL in the same move.
+                      if (e.target.checked && stripped?.cardId === card.id) {
+                        updateCard(card.id, { buttonHref: stripped.original, external: true })
+                        setStripped(null)
+                      } else {
+                        updateCard(card.id, { external: e.target.checked })
+                      }
+                    }}
+                  />
+                  External link (opens in a new tab)
+                </label>
+                {stripped?.cardId === card.id && (
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-600">
+                    <span>
+                      Removed <span className="font-mono">{stripped.origin}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCard(card.id, { buttonHref: stripped.original })
+                        setStripped(null)
+                      }}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Undo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateCard(card.id, { buttonHref: stripped.original, external: true })
+                        setStripped(null)
+                      }}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Make external
+                    </button>
+                  </div>
+                )}
+                {card.external && isRelativeHref(card.buttonHref) && (
+                  <p className="mt-1 text-[11px] text-amber-600">
+                    ⚠ This is a relative link — "open in a new tab" only suits full URLs to another site.
+                  </p>
+                )}
               </div>
             ))}
           </div>

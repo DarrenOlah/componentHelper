@@ -4,6 +4,8 @@ import {
   generateCardsPreviewHtml,
   scopeId,
   columnClass,
+  splitAbsoluteHref,
+  isRelativeHref,
   type GenerateCardsInput,
 } from './cards'
 import {
@@ -24,8 +26,8 @@ const baseInput: GenerateCardsInput = {
   cardsPerRow: 3,
   colors: { accent: '#FFCC33', accentText: '#000000', surface: '#000000', text: '#FFFFFF' },
   cards: [
-    { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: 'Visit A', buttonHref: 'https://example.com/a' },
-    { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: 'Visit B', buttonHref: 'https://example.com/b' },
+    { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: 'Visit A', buttonHref: 'https://example.com/a', external: false },
+    { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: 'Visit B', buttonHref: 'https://example.com/b', external: false },
   ],
 }
 
@@ -85,6 +87,69 @@ describe('generateCardsHtml — escaping in output', () => {
   it('defaults an empty button label to "Learn more"', () => {
     const out = gen({ cards: [{ ...baseInput.cards[0], buttonText: '   ' }] })
     expect(out).toContain('>Learn more</a>')
+  })
+})
+
+describe('generateCardsHtml — external links', () => {
+  it('emits target/rel only when external is true', () => {
+    const ext = gen({ cards: [{ ...baseInput.cards[0], external: true }] })
+    expect(ext).toContain('href="https://example.com/a" target="_blank" rel="noopener"')
+    const internal = gen({ cards: [{ ...baseInput.cards[0], external: false }] })
+    expect(internal).not.toContain('target="_blank"')
+    expect(internal).not.toContain('rel="noopener"')
+  })
+
+  it('applies to callout and hover anchors too', () => {
+    expect(gen({ type: 'callout', cards: [{ ...baseInput.cards[0], external: true }] }))
+      .toContain('target="_blank" rel="noopener"')
+    expect(gen({ type: 'hover', cards: [{ ...baseInput.cards[0], external: true }] }))
+      .toContain('target="_blank" rel="noopener"')
+  })
+})
+
+describe('splitAbsoluteHref', () => {
+  it('splits a fully-qualified http(s) URL into origin + root-relative path', () => {
+    expect(splitAbsoluteHref('https://www.army.mil/careers?x=1#y'))
+      .toEqual({ origin: 'https://www.army.mil', rootRelative: '/careers?x=1#y' })
+    expect(splitAbsoluteHref('http://example.com/a'))
+      .toEqual({ origin: 'http://example.com', rootRelative: '/a' })
+  })
+
+  it('uses "/" as the path when the URL has only an origin (incl. a bare query)', () => {
+    expect(splitAbsoluteHref('https://www.army.mil')).toEqual({ origin: 'https://www.army.mil', rootRelative: '/' })
+    expect(splitAbsoluteHref('https://www.army.mil?x=1')).toEqual({ origin: 'https://www.army.mil', rootRelative: '/?x=1' })
+  })
+
+  it('returns null for anything that has no origin to strip', () => {
+    expect(splitAbsoluteHref('/Portals/0/x')).toBeNull() // already root-relative
+    expect(splitAbsoluteHref('//cdn.example.com/x')).toBeNull() // protocol-relative
+    expect(splitAbsoluteHref('mailto:x@army.mil')).toBeNull()
+    expect(splitAbsoluteHref('tel:+1234')).toBeNull()
+    expect(splitAbsoluteHref('relative/path')).toBeNull()
+    expect(splitAbsoluteHref('   ')).toBeNull()
+    expect(splitAbsoluteHref('')).toBeNull()
+  })
+})
+
+describe('isRelativeHref', () => {
+  it('is true for same-site links with no origin of their own', () => {
+    expect(isRelativeHref('/Portals/0/x')).toBe(true)
+    expect(isRelativeHref('careers')).toBe(true)
+    expect(isRelativeHref('#section')).toBe(true)
+    expect(isRelativeHref('?q=1')).toBe(true)
+  })
+
+  it('is false for anything that points off-site (scheme or protocol-relative)', () => {
+    expect(isRelativeHref('https://x.com/a')).toBe(false)
+    expect(isRelativeHref('http://x.com')).toBe(false)
+    expect(isRelativeHref('//cdn.x/a')).toBe(false) // protocol-relative
+    expect(isRelativeHref('mailto:x@army.mil')).toBe(false)
+    expect(isRelativeHref('tel:+1234')).toBe(false)
+  })
+
+  it('is false for empty/blank (nothing to warn about yet)', () => {
+    expect(isRelativeHref('')).toBe(false)
+    expect(isRelativeHref('   ')).toBe(false)
   })
 })
 
@@ -398,6 +463,15 @@ describe('coerceSnapshot', () => {
     expect(card.body).toBe('ok')
   })
 
+  it('defaults external to false and accepts a stored boolean', () => {
+    const def = coerceSnapshot({ cards: [{ buttonHref: '/x' }] })!
+    expect(def.cards[0].external).toBe(false) // missing → default
+    const noisy = coerceSnapshot({ cards: [{ buttonHref: '/x', external: 'yes' }] })!
+    expect(noisy.cards[0].external).toBe(false) // non-boolean → default
+    const ext = coerceSnapshot({ cards: [{ buttonHref: 'https://x/y', external: true }] })!
+    expect(ext.cards[0].external).toBe(true)
+  })
+
   it('falls back to default colors when colors are missing/non-string', () => {
     const s = coerceSnapshot({ cards: [], accent: 42 })!
     expect(s.accent).toBe(DEFAULT_CARD_COLORS.accent)
@@ -556,6 +630,12 @@ describe('snapshotsEqual', () => {
   it('is false when a card field differs', () => {
     const other = clone()
     other.cards[1] = { ...other.cards[1], buttonText: 'changed' }
+    expect(snapshotsEqual(base, other)).toBe(false)
+  })
+
+  it('is false when the external flag differs', () => {
+    const other = clone()
+    other.cards[0] = { ...other.cards[0], external: true }
     expect(snapshotsEqual(base, other)).toBe(false)
   })
 

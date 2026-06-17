@@ -82,6 +82,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       buttonText: '',
       ctaText: '',
       buttonHref: '',
+      external: false,
     }
 
     if (type === 'icon') {
@@ -91,17 +92,20 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       if (!a) continue // a card with no link isn't usable — skip it, don't abort
       card.buttonText = txt(a)
       card.buttonHref = attr(a, 'href')
+      card.external = attr(a, 'target').toLowerCase() === '_blank'
     } else if (type === 'callout') {
       const a = el.querySelector('[class*="__btn"]')
       if (!a) continue
       card.buttonText = txt(a)
       card.buttonHref = attr(a, 'href')
+      card.external = attr(a, 'target').toLowerCase() === '_blank'
     } else {
       // hover: the gold band (__title-link) is the single stretched link.
       const a = el.querySelector('[class*="__title-link"]')
       if (!a) continue
       card.buttonText = txt(a)
       card.buttonHref = attr(a, 'href')
+      card.external = attr(a, 'target').toLowerCase() === '_blank'
       card.body = txt(el.querySelector('[class*="__desc"]'))
       card.ctaText = txt(el.querySelector('[class*="__cta"]'))
     }

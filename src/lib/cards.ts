@@ -27,6 +27,9 @@ export interface CardContent {
   buttonText: string // icon/callout __btn, hover __title (gold band)
   ctaText: string // hover __cta only (the revealed link)
   buttonHref: string
+  // external → emit target="_blank" rel="noopener"; also suppresses the UI's
+  // make-root-relative hint (a deliberate external link keeps its full origin).
+  external: boolean
 }
 
 // One color scheme for the whole row, mapped to the demo's --au-* custom props.
@@ -85,7 +88,34 @@ export function makeDefaultCard(): CardContent {
     buttonText: '',
     ctaText: '',
     buttonHref: '',
+    external: false,
   }
+}
+
+// Detect a fully-qualified http(s) URL and split it into its origin (for the UI
+// hint) and a root-relative remainder (the rewrite the hint applies). Returns null
+// for relative ('/Portals/…'), protocol-relative ('//cdn/…'), mailto:/tel:, or
+// empty values — nothing to strip. Pure so the UI can call it per keystroke.
+export function splitAbsoluteHref(raw: string): { origin: string; rootRelative: string } | null {
+  const m = raw.trim().match(/^(https?:)\/\/([^/?#]+)(.*)$/i)
+  if (!m) return null
+  const [, scheme, host, rest] = m
+  return {
+    origin: `${scheme}//${host}`,
+    rootRelative: rest.startsWith('/') ? rest : `/${rest}`,
+  }
+}
+
+// True when href is a same-site (relative) link with no origin of its own:
+// '/path', 'path', '#anchor', '?q'. Used to warn that marking such a link
+// "external" (open in a new tab) is almost always a mistake — that only suits a
+// full URL to another site. Scheme'd values (http:, mailto:, tel:, …) and
+// protocol-relative '//host' point off-site, so they are NOT relative.
+export function isRelativeHref(raw: string): boolean {
+  const s = raw.trim()
+  if (!s) return false // nothing entered yet — nothing to warn about
+  if (s.startsWith('//')) return false // protocol-relative → cross-origin capable
+  return !/^[a-z][a-z0-9+.-]*:/i.test(s) // no scheme → same-site
 }
 
 // ---- Color resolution -----------------------------------------------------
@@ -151,29 +181,31 @@ function commonFields(card: CardContent) {
     body: card.body.trim(),
     // Never emit an empty (a11y-invalid) link label on a whole-card click target.
     label: escapeHtmlText(card.buttonText.trim() || 'Learn more'),
+    // External links open in a new tab; rel="noopener" severs window.opener access.
+    linkAttrs: card.external ? ' target="_blank" rel="noopener"' : '',
   }
 }
 
 function iconCardMarkup(inst: string, card: CardContent): string {
-  const { src, alt, href, heading, body, label } = commonFields(card)
+  const { src, alt, href, heading, body, label, linkAttrs } = commonFields(card)
   return [
     `          <img class="${inst}__icon" src="${src}" alt="${alt}" />`,
     ...(heading ? [`          <h3 class="${inst}__title">${escapeHtmlText(heading)}</h3>`] : []),
     ...(body ? [`          <p class="${inst}__text">${escapeHtmlText(body)}</p>`] : []),
-    `          <a class="${inst}__btn" href="${href}">${label}</a>`,
+    `          <a class="${inst}__btn" href="${href}"${linkAttrs}>${label}</a>`,
   ].join('\n')
 }
 
 function calloutCardMarkup(inst: string, card: CardContent): string {
-  const { src, alt, href, label } = commonFields(card)
+  const { src, alt, href, label, linkAttrs } = commonFields(card)
   return [
     `          <img class="${inst}__img" src="${src}" alt="${alt}" />`,
-    `          <a class="${inst}__btn" href="${href}">${label}</a>`,
+    `          <a class="${inst}__btn" href="${href}"${linkAttrs}>${label}</a>`,
   ].join('\n')
 }
 
 function hoverCardMarkup(inst: string, card: CardContent): string {
-  const { src, alt, href, body, label } = commonFields(card)
+  const { src, alt, href, body, label, linkAttrs } = commonFields(card)
   // The gold band (button text) is the card's single stretched link: it's required,
   // so the <a> is never empty (DNN strips empty elements). The CTA is optional and
   // simply omitted when blank — it's no longer the click target, just non-anchor
@@ -182,7 +214,7 @@ function hoverCardMarkup(inst: string, card: CardContent): string {
   return [
     `          <img class="${inst}__img" src="${src}" alt="${alt}" />`,
     `          <div class="${inst}__box">`,
-    `            <h3 class="${inst}__title"><a class="${inst}__title-link" href="${href}">${label}</a></h3>`,
+    `            <h3 class="${inst}__title"><a class="${inst}__title-link" href="${href}"${linkAttrs}>${label}</a></h3>`,
     ...(body ? [`            <span class="${inst}__desc">${escapeHtmlText(body)}</span>`] : []),
     ...(cta ? [`            <span class="${inst}__cta">${escapeHtmlText(cta)}</span>`] : []),
     `          </div>`,
@@ -320,6 +352,7 @@ function coerceCardContent(raw: unknown): CardContent {
     buttonText: str(raw.buttonText, d.buttonText),
     ctaText: str(raw.ctaText, d.ctaText),
     buttonHref: str(raw.buttonHref, d.buttonHref),
+    external: typeof raw.external === 'boolean' ? raw.external : d.external,
   }
 }
 
@@ -438,7 +471,8 @@ export function snapshotsEqual(a: CardsSnapshot, b: CardsSnapshot): boolean {
       c.body === o.body &&
       c.buttonText === o.buttonText &&
       c.ctaText === o.ctaText &&
-      c.buttonHref === o.buttonHref
+      c.buttonHref === o.buttonHref &&
+      c.external === o.external
     )
   })
 }
