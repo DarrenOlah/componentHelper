@@ -13,6 +13,7 @@ import {
   type CardAlign,
   type CardColors,
   type CardContent,
+  type CardImageAspect,
   type GenerateCardsInput,
 } from './cards'
 import { IMAGE_PLACEHOLDER } from './sanitize'
@@ -20,6 +21,16 @@ import { IMAGE_PLACEHOLDER } from './sanitize'
 // Full count is carried by col-lg-* (3/4-up); 2-up tops out at col-md-6 and 1-up
 // at col-12. 5-up uses the custom au-col-5 hook (no Bootstrap class for 12/5).
 const PER_ROW_FROM_LG: Record<string, 3 | 4> = { '4': 3, '3': 4 }
+
+// Reverse of cards.ts ASPECT_CSS: the emitted `aspect-ratio: w / h` → preset key.
+const ASPECT_FROM_CSS: Record<string, CardImageAspect> = {
+  '1 / 1': '1:1',
+  '5 / 4': '5:4',
+  '4 / 3': '4:3',
+  '3 / 2': '3:2',
+  '16 / 9': '16:9',
+  '21 / 9': '21:9',
+}
 
 // Read a CSS custom property's value out of raw CSS text. Anchored on the `:` so
 // `--au-gold` never matches the derived `--au-gold-hover`.
@@ -75,6 +86,11 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
     text: cssVar(cssText, 'au-text') ?? DEFAULT_CARD_COLORS.text,
   }
 
+  // Image shape from the appended `aspect-ratio` rule (absent → auto). Only present
+  // in a full block paste with the <style>; markup-only pastes degrade to auto.
+  const ar = cssText.match(/aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/)
+  const imageAspect: CardImageAspect = (ar && ASPECT_FROM_CSS[`${ar[1]} / ${ar[2]}`]) || 'auto'
+
   const txt = (el: Element | null) => (el?.textContent ?? '').trim()
   const attr = (el: Element | null, name: string) => el?.getAttribute(name) ?? ''
   const unplaceholder = (src: string) => (src === IMAGE_PLACEHOLDER ? '' : src)
@@ -121,5 +137,5 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   }
   if (cards.length === 0) return null
 
-  return { type, cardsPerRow, align, colors, cards }
+  return { type, cardsPerRow, imageAspect, align, colors, cards }
 }

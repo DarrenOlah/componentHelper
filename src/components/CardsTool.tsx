@@ -12,10 +12,12 @@ import {
   isRelativeHref,
   DEFAULT_CARD_COLORS,
   MAX_CARDS,
+  IMAGE_ASPECTS,
   type CardType,
   type CardContent,
   type CardAlign,
   type CardsPerRow,
+  type CardImageAspect,
   type PreviewContext,
   type GenerateCardsInput,
   type CardsSnapshot,
@@ -32,6 +34,7 @@ interface CardItem extends CardContent {
 interface CardsState {
   type: CardType
   cardsPerRow: CardsPerRow
+  imageAspect: CardImageAspect
   align: CardAlign
   accent: string
   accentText: string
@@ -87,6 +90,7 @@ function defaultSettings() {
   return {
     type: 'icon' as CardType,
     cardsPerRow: 3 as CardsPerRow,
+    imageAspect: 'auto' as CardImageAspect,
     align: 'left' as CardAlign,
     accent: DEFAULT_CARD_COLORS.accent,
     accentText: DEFAULT_CARD_COLORS.accentText,
@@ -113,6 +117,7 @@ function toSnapshot(state: CardsState): CardsSnapshot {
   return {
     type: state.type,
     cardsPerRow: state.cardsPerRow,
+    imageAspect: state.imageAspect,
     align: state.align,
     accent: state.accent,
     accentText: state.accentText,
@@ -178,6 +183,17 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
 ]
 
 const PER_ROW: CardsPerRow[] = [1, 2, 3, 4, 5]
+
+// Friendly labels for the cover-photo "Image shape" presets (IMAGE_ASPECTS order).
+const ASPECT_LABELS: Record<CardImageAspect, string> = {
+  auto: 'Auto (fixed-height crop)',
+  '1:1': 'Square (1:1)',
+  '5:4': '5:4',
+  '4:3': '4:3',
+  '3:2': '3:2',
+  '16:9': '16:9 (Widescreen)',
+  '21:9': '21:9 (Cinematic)',
+}
 
 const ALIGNS: { id: CardAlign; label: string }[] = [
   { id: 'left', label: 'Left' },
@@ -291,7 +307,7 @@ export function CardsTool() {
   // One at a time — editing another field's URL just moves the receipt.
   const [stripped, setStripped] = useState<{ cardId: number; original: string; origin: string } | null>(null)
 
-  const { type, cardsPerRow, align, accent, accentText, surface, text, cards } = state
+  const { type, cardsPerRow, imageAspect, align, accent, accentText, surface, text, cards } = state
 
   const showHeading = type === 'icon' // hover's gold band is button text, not a heading
   const showBody = type !== 'callout' // icon __text + hover __desc
@@ -306,6 +322,7 @@ export function CardsTool() {
   const settingsAreDefault =
     type === d.type &&
     cardsPerRow === d.cardsPerRow &&
+    imageAspect === d.imageAspect &&
     align === d.align &&
     eqHex(accent, d.accent) &&
     eqHex(accentText, d.accentText) &&
@@ -316,6 +333,7 @@ export function CardsTool() {
     () => ({
       type,
       cardsPerRow,
+      imageAspect,
       align,
       colors: { accent, accentText, surface, text },
       cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, ctaText, buttonHref, external }) => ({
@@ -329,7 +347,7 @@ export function CardsTool() {
         external,
       })),
     }),
-    [type, cardsPerRow, align, accent, accentText, surface, text, cards],
+    [type, cardsPerRow, imageAspect, align, accent, accentText, surface, text, cards],
   )
 
   const previewHtml = useMemo(
@@ -603,6 +621,7 @@ export function CardsTool() {
     setState({
       type: parsed.type,
       cardsPerRow: parsed.cardsPerRow,
+      imageAspect: parsed.imageAspect ?? 'auto',
       align: parsed.align ?? 'left',
       accent: parsed.colors.accent,
       accentText: parsed.colors.accentText,
@@ -776,6 +795,25 @@ export function CardsTool() {
           <p className="mt-2 text-xs text-gray-400">
             Affects only lines that aren’t full (too few cards, or the last wrapped row). Full rows look the same either way.
           </p>
+
+          {(type === 'callout' || type === 'hover') && (
+            <>
+              <label className="block text-xs font-medium text-gray-700 mb-1 mt-4">Image shape</label>
+              <select
+                value={imageAspect}
+                onChange={e => setState(s => ({ ...s, imageAspect: e.target.value as CardImageAspect }))}
+                className={inputCls}
+              >
+                {IMAGE_ASPECTS.map(a => (
+                  <option key={a} value={a}>
+                    {ASPECT_LABELS[a]}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-gray-400">
+              </p>
+            </>
+          )}
         </div>
 
         {/* Section 2: Colors */}

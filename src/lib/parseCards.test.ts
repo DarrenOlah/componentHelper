@@ -74,7 +74,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
     })
   })
 
-  it('recovers 1-up (col-12 only) and 5-up (col-lg-2 hook) layouts', () => {
+  it('recovers 1-up (col-12 only) and 5-up (au-col-5 hook) layouts', () => {
     const oneUp = roundTrip({
       type: 'icon',
       cardsPerRow: 1,
@@ -92,6 +92,18 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
     })!
     expect(fiveUp.cardsPerRow).toBe(5)
+  })
+
+  it('recovers the image shape (aspect ratio) for cover-photo cards', () => {
+    const card = { imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }
+    const shaped = roundTrip({ type: 'callout', cardsPerRow: 1, imageAspect: '4:3', align: 'left', colors, cards: [card] })!
+    expect(shaped.imageAspect).toBe('4:3')
+    // the ultrawide cinematic preset round-trips too (21 / 9, integer pair)
+    const cine = roundTrip({ type: 'hover', cardsPerRow: 1, imageAspect: '21:9', align: 'left', colors, cards: [card] })!
+    expect(cine.imageAspect).toBe('21:9')
+    // default (no aspect rule emitted) round-trips to auto
+    const plain = roundTrip({ type: 'callout', cardsPerRow: 1, align: 'left', colors, cards: [card] })!
+    expect(plain.imageAspect).toBe('auto')
   })
 })
 

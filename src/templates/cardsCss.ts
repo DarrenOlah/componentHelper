@@ -185,6 +185,8 @@ ${varsBlock(v)}
     background: var(--au-surface);
   }
   .${inst}:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
+  /* min-height is a small-width floor; generateCardsHtml may append an aspect-ratio
+     rule on .${inst} so the card grows in height (see IMAGE_ASPECTS in cards.ts). */
   .${inst}__img {
     position: absolute;
     inset: 0;
@@ -262,6 +264,8 @@ ${varsBlock(v)}
     color: var(--au-text);
   }
   .${inst}:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
+  /* min-height is a small-width floor; generateCardsHtml may append an aspect-ratio
+     rule on .${inst} so the card grows in height (see IMAGE_ASPECTS in cards.ts). */
   .${inst}__img {
     position: absolute;
     inset: 0;

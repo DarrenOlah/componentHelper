@@ -50,9 +50,32 @@ export type CardAlign = 'left' | 'center'
 // every width; 5-up graduates 1 → 2 → 5 like 3-up/4-up do.
 export type CardsPerRow = 1 | 2 | 3 | 4 | 5
 
+// Optional fixed aspect ratio for the cover-photo cards (callout/hover). 'auto'
+// keeps the legacy fixed-height crop (min-height: 250px + object-fit: cover); any
+// other preset gives the card an `aspect-ratio` so its height tracks its width —
+// so a full-width 1-up landscape photo can show whole instead of being cropped.
+// Icon cards ignore it (their image is a fixed 90px square, not a cover photo).
+export const IMAGE_ASPECTS = ['auto', '1:1', '5:4', '4:3', '3:2', '16:9', '21:9'] as const
+export type CardImageAspect = (typeof IMAGE_ASPECTS)[number]
+// Fixed allowlist → fixed CSS values: safe to interpolate into <style> (the value
+// is never user free-text, only one of these keys chosen in the UI). 21:9 is the
+// ultrawide "cinematic" banner — wider/shorter than 16:9 — kept as an integer pair
+// so the importer's `w / h` round-trip regex still recovers it.
+const ASPECT_CSS: Record<CardImageAspect, string> = {
+  auto: '',
+  '1:1': '1 / 1',
+  '5:4': '5 / 4',
+  '4:3': '4 / 3',
+  '3:2': '3 / 2',
+  '16:9': '16 / 9',
+  '21:9': '21 / 9',
+}
+
 export interface GenerateCardsInput {
   type: CardType
   cardsPerRow: CardsPerRow
+  // Defaults to 'auto' when omitted.
+  imageAspect?: CardImageAspect
   colors: CardColors
   cards: CardContent[]
   align?: CardAlign // defaults to 'left'
@@ -251,8 +274,13 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   // Grid wrapper class scopes the flush, gap-based layout override to this block's
   // container/row only, never the host page's other Bootstrap rows.
   const gridClass = `${inst}-grid`
+  // Optional fixed aspect ratio for the cover-photo cards: a later, same-specificity
+  // rule that only adds `aspect-ratio`, so the card's height tracks its width while
+  // min-height stays a small-width floor. Never emitted for icon cards or 'auto'.
+  const ar = input.type !== 'icon' ? ASPECT_CSS[input.imageAspect ?? 'auto'] : ''
+  const aspectRule = ar ? `\n  .${inst} { aspect-ratio: ${ar}; }` : ''
   const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover })}
-  ${cardGridCss(gridClass, input.cardsPerRow)}`
+  ${cardGridCss(gridClass, input.cardsPerRow)}${aspectRule}`
   const cols = columnClass(input.cardsPerRow)
   const rowClass = input.align === 'center' ? 'row justify-content-center' : 'row'
   // Preview-only open state for the hover card (never on the copy path).
@@ -326,6 +354,7 @@ ${generateCardsHtml(input, { revealHover: opts.revealHover })}
 export interface CardsSnapshot {
   type: CardType
   cardsPerRow: CardsPerRow
+  imageAspect: CardImageAspect
   align: CardAlign
   accent: string
   accentText: string
@@ -374,6 +403,7 @@ export function coerceSnapshot(raw: unknown): CardsSnapshot | null {
   return {
     type: oneOf(raw.type, CARD_TYPES, 'icon'),
     cardsPerRow: oneOf(raw.cardsPerRow, PER_ROW_VALUES, 3),
+    imageAspect: oneOf(raw.imageAspect, IMAGE_ASPECTS, 'auto'),
     align: oneOf(raw.align, CARD_ALIGNS, 'left'),
     accent: str(raw.accent, DEFAULT_CARD_COLORS.accent),
     accentText: str(raw.accentText, DEFAULT_CARD_COLORS.accentText),
@@ -451,6 +481,7 @@ export function snapshotToGenInput(snap: CardsSnapshot): GenerateCardsInput {
   return {
     type: snap.type,
     cardsPerRow: snap.cardsPerRow,
+    imageAspect: snap.imageAspect,
     align: snap.align,
     colors: { accent: snap.accent, accentText: snap.accentText, surface: snap.surface, text: snap.text },
     cards: snap.cards.map(c => ({ ...c })),
@@ -463,6 +494,7 @@ export function snapshotsEqual(a: CardsSnapshot, b: CardsSnapshot): boolean {
   if (
     a.type !== b.type ||
     a.cardsPerRow !== b.cardsPerRow ||
+    a.imageAspect !== b.imageAspect ||
     a.align !== b.align ||
     a.accent !== b.accent ||
     a.accentText !== b.accentText ||

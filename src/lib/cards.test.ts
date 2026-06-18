@@ -422,10 +422,29 @@ describe('DNN / copy constraints', () => {
   })
 })
 
+describe('image shape (aspect ratio)', () => {
+  it('appends an aspect-ratio rule for callout/hover when a preset is chosen', () => {
+    const cId = scopeId('callout', baseInput.colors)
+    expect(gen({ type: 'callout', imageAspect: '3:2' })).toContain(`.au-callout-card--${cId} { aspect-ratio: 3 / 2; }`)
+    const hId = scopeId('hover', baseInput.colors)
+    expect(gen({ type: 'hover', imageAspect: '16:9' })).toContain(`.au-hover-card--${hId} { aspect-ratio: 16 / 9; }`)
+  })
+
+  it('emits no aspect-ratio rule for auto (default) or for icon cards', () => {
+    // Match the property (with colon); the explanatory CSS comment also ships and
+    // mentions "aspect-ratio" without one, so a bare substring check would misfire.
+    expect(gen({ type: 'callout' })).not.toContain('aspect-ratio:')
+    expect(gen({ type: 'callout', imageAspect: 'auto' })).not.toContain('aspect-ratio:')
+    // icon ignores the setting entirely (its image is a fixed square, not a cover)
+    expect(gen({ type: 'icon', imageAspect: '3:2' })).not.toContain('aspect-ratio:')
+  })
+})
+
 describe('coerceSnapshot', () => {
   const goodSnap = {
     type: 'hover',
     cardsPerRow: 4,
+    imageAspect: '4:3',
     align: 'center',
     accent: '#123456',
     accentText: '#ffffff',
@@ -445,15 +464,17 @@ describe('coerceSnapshot', () => {
     const s = coerceSnapshot(goodSnap)!
     expect(s.type).toBe('hover')
     expect(s.cardsPerRow).toBe(4)
+    expect(s.imageAspect).toBe('4:3')
     expect(s.align).toBe('center')
     expect(s.accent).toBe('#123456')
     expect(s.cards[0].heading).toBe('Alpha')
   })
 
   it('clamps bad enum values to defaults', () => {
-    const s = coerceSnapshot({ ...goodSnap, type: 'bogus', cardsPerRow: 7, align: 'sideways' })!
+    const s = coerceSnapshot({ ...goodSnap, type: 'bogus', cardsPerRow: 7, imageAspect: 'banana', align: 'sideways' })!
     expect(s.type).toBe('icon')
     expect(s.cardsPerRow).toBe(3)
+    expect(s.imageAspect).toBe('auto')
     expect(s.align).toBe('left')
   })
 
@@ -590,6 +611,7 @@ describe('snapshotToGenInput', () => {
   const snap: CardsSnapshot = {
     type: 'hover',
     cardsPerRow: 4,
+    imageAspect: '4:3',
     align: 'center',
     accent: '#123456',
     accentText: '#ffffff',
@@ -602,6 +624,7 @@ describe('snapshotToGenInput', () => {
     const gi = snapshotToGenInput(snap)
     expect(gi.type).toBe('hover')
     expect(gi.cardsPerRow).toBe(4)
+    expect(gi.imageAspect).toBe('4:3')
     expect(gi.align).toBe('center')
     expect(gi.colors).toEqual({ accent: '#123456', accentText: '#ffffff', surface: '#000000', text: '#eeeeee' })
     expect(gi.cards).toHaveLength(1)
@@ -617,6 +640,7 @@ describe('snapshotsEqual', () => {
   const base: CardsSnapshot = {
     type: 'icon',
     cardsPerRow: 3,
+    imageAspect: 'auto',
     align: 'left',
     accent: '#FFCC33',
     accentText: '#000000',
@@ -633,6 +657,7 @@ describe('snapshotsEqual', () => {
   it('is false when a setting differs', () => {
     expect(snapshotsEqual(base, { ...clone(), align: 'center' })).toBe(false)
     expect(snapshotsEqual(base, { ...clone(), cardsPerRow: 4 })).toBe(false)
+    expect(snapshotsEqual(base, { ...clone(), imageAspect: '3:2' })).toBe(false)
     expect(snapshotsEqual(base, { ...clone(), accent: '#000000' })).toBe(false)
   })
 
