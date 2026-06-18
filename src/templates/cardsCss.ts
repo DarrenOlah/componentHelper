@@ -41,9 +41,14 @@ const F400 = '"GI-400", system-ui, Arial, sans-serif'
 // the gaps separate them. Change this one value to retune (e.g. back to 30).
 export const CARD_GAP_PX = 15
 
-// The full-count column class applies at the lg breakpoint (992px). 2-up reaches
-// its full count already at md (col-md-6), so it has no lg entry.
-const LG_COL: Record<3 | 4, string> = { 3: 'col-lg-4', 4: 'col-lg-3' }
+// The full-count column class applies at the lg breakpoint (992px). 1-up/2-up
+// reach their full count below lg (col-12 / col-md-6), so they have no lg entry.
+// 3-up/4-up use real Bootstrap classes: 12/3 and 12/4 are integers, so the class
+// is also a correct fallback if our override never loads. 5-up has no exact class
+// (12/5 = 2.4), so reusing a col-* class would be actively misleading (it would
+// fall back to the wrong count). It gets a custom au-col-5 hook instead, sized
+// entirely by the calc() override below.
+const LG_COL: Record<3 | 4 | 5, string> = { 3: 'col-lg-4', 4: 'col-lg-3', 5: 'au-col-5' }
 
 // Scoped layout override applied only under our own grid wrapper class (never the
 // page's other rows). We deliberately abandon Bootstrap's negative-margin gutter
@@ -57,17 +62,26 @@ const LG_COL: Record<3 | 4, string> = { 3: 'col-lg-4', 4: 'col-lg-3' }
 // Selectors are scoped + specific enough to beat the host's `.row`/`.col-*` rules.
 // Breakpoint progression (graduated to delay density on small screens):
 //   • < 768px  → 1 column   (col-12, the default below)
-//   • ≥ 768px  → 2 columns  (col-md-6 — the final count for 2-up)
-//   • ≥ 992px  → full count (col-lg-4 / col-lg-3 — only for 3-up / 4-up)
-export function cardGridCss(gridClass: string, cardsPerRow: 2 | 3 | 4, gap = CARD_GAP_PX): string {
+//   • ≥ 768px  → 2 columns  (col-md-6 — the final count for 2-up; skipped for 1-up)
+//   • ≥ 992px  → full count (col-lg-4 / col-lg-3 / col-lg-2 — for 3/4/5-up)
+// 1-up never steps up: it stays a single col-12 column at every width.
+export function cardGridCss(gridClass: string, cardsPerRow: 1 | 2 | 3 | 4 | 5, gap = CARD_GAP_PX): string {
   // Flex-basis for n equal columns sharing (n-1) gaps across a 100% row.
   const w = (n: number) => `calc((100% - ${(n - 1) * gap}px) / ${n})`
-  // 3-up/4-up step up to their full count at lg; 2-up is already done at md.
+  // Every count except 1-up drops to 2 columns at md.
+  const mdRule =
+    cardsPerRow >= 2
+      ? `
+  @media (min-width: 768px) {
+    .${gridClass} > .row > .col-md-6 { flex: 0 0 ${w(2)}; max-width: ${w(2)}; }
+  }`
+      : ''
+  // 3/4/5-up step up to their full count at lg; 1-up/2-up are already done below lg.
   const lgRule =
     cardsPerRow > 2
       ? `
   @media (min-width: 992px) {
-    .${gridClass} > .row > .${LG_COL[cardsPerRow as 3 | 4]} { flex: 0 0 ${w(cardsPerRow)}; max-width: ${w(cardsPerRow)}; }
+    .${gridClass} > .row > .${LG_COL[cardsPerRow as 3 | 4 | 5]} { flex: 0 0 ${w(cardsPerRow)}; max-width: ${w(cardsPerRow)}; }
   }`
       : ''
   // Compound selector + !important so the zeroed gutters beat the host theme's
@@ -75,10 +89,7 @@ export function cardGridCss(gridClass: string, cardsPerRow: 2 | 3 | 4, gap = CAR
   return `.container-fluid.${gridClass} { padding-right: 0 !important; padding-left: 0 !important; }
   .${gridClass} > .row { margin-right: 0; margin-left: 0; gap: ${gap}px; }
   .${gridClass} > .row > [class*="col-"] { padding-right: 0; padding-left: 0; }
-  .${gridClass} > .row > .col-12 { flex: 0 0 100%; max-width: 100%; }
-  @media (min-width: 768px) {
-    .${gridClass} > .row > .col-md-6 { flex: 0 0 ${w(2)}; max-width: ${w(2)}; }
-  }${lgRule}`
+  .${gridClass} > .row > .col-12 { flex: 0 0 100%; max-width: 100%; }${mdRule}${lgRule}`
 }
 
 // ---- Icon card: overhanging square, optional heading/body, full-bleed button --

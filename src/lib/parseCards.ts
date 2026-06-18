@@ -17,7 +17,8 @@ import {
 } from './cards'
 import { IMAGE_PLACEHOLDER } from './sanitize'
 
-// Full count is carried by col-lg-* (3-up/4-up); 2-up tops out at col-md-6.
+// Full count is carried by col-lg-* (3/4-up); 2-up tops out at col-md-6 and 1-up
+// at col-12. 5-up uses the custom au-col-5 hook (no Bootstrap class for 12/5).
 const PER_ROW_FROM_LG: Record<string, 3 | 4> = { '4': 3, '3': 4 }
 
 // Read a CSS custom property's value out of raw CSS text. Anchored on the `:` so
@@ -39,13 +40,20 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   const cardEls = Array.from(doc.getElementsByClassName(base))
   if (cardEls.length === 0) return null
 
-  // cards-per-row from the card's Bootstrap column class. The full count lives on
-  // col-lg-4/3 (→ 3/4); 2-up has only col-md-6 (→ 2). Check lg first, then fall back.
-  let cardsPerRow: 2 | 3 | 4 = 3
-  const lgCol = cardEls[0].closest('[class*="col-lg-"]')
-  const lg = (lgCol?.className.match(/col-lg-(\d+)/) || [])[1]
-  if (lg && PER_ROW_FROM_LG[lg]) cardsPerRow = PER_ROW_FROM_LG[lg]
-  else if (cardEls[0].closest('.col-md-6')) cardsPerRow = 2
+  // cards-per-row from the card's column class. 5-up carries the custom au-col-5
+  // hook; 3/4-up carry col-lg-4/3; 2-up has only col-md-6; 1-up only col-12. Check
+  // most-specific first; au-col-5 isn't a col-lg-* so it must be tested on its own.
+  // No recognizable col class → default 3.
+  let cardsPerRow: 1 | 2 | 3 | 4 | 5 = 3
+  if (cardEls[0].closest('.au-col-5')) {
+    cardsPerRow = 5
+  } else {
+    const lgCol = cardEls[0].closest('[class*="col-lg-"]')
+    const lg = (lgCol?.className.match(/col-lg-(\d+)/) || [])[1]
+    if (lg && PER_ROW_FROM_LG[lg]) cardsPerRow = PER_ROW_FROM_LG[lg]
+    else if (cardEls[0].closest('.col-md-6')) cardsPerRow = 2
+    else if (cardEls[0].closest('.col-12')) cardsPerRow = 1
+  }
 
   // alignment from the row class.
   const row = cardEls[0].closest('[class*="row"]')

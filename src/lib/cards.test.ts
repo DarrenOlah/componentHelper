@@ -220,9 +220,11 @@ describe('scopeId — determinism & isolation', () => {
 
 describe('columnClass + layout', () => {
   it('maps cards-per-row to Bootstrap columns', () => {
+    expect(columnClass(1)).toBe('col-12')
     expect(columnClass(2)).toBe('col-12 col-md-6')
     expect(columnClass(3)).toBe('col-12 col-md-6 col-lg-4')
     expect(columnClass(4)).toBe('col-12 col-md-6 col-lg-3')
+    expect(columnClass(5)).toBe('col-12 col-md-6 au-col-5')
   })
 
   it('emits one column div per card, in order, with d-flex', () => {
@@ -274,6 +276,13 @@ describe('inter-card gap (uniform 15px, flush with text edges)', () => {
       `.au-icon-card--${id}-grid > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }`,
     )
     expect(gen({ cardsPerRow: 2 })).not.toContain('@media (min-width: 992px)')
+    // 5-up reaches its full count at lg via the custom au-col-5 hook
+    expect(gen({ cardsPerRow: 5 })).toContain(
+      `.au-icon-card--${id}-grid > .row > .au-col-5 { flex: 0 0 calc((100% - 60px) / 5); max-width: calc((100% - 60px) / 5); }`,
+    )
+    // 1-up is a single column at every width: no md step, no lg step
+    expect(gen({ cardsPerRow: 1 })).not.toContain('@media (min-width: 768px)')
+    expect(gen({ cardsPerRow: 1 })).not.toContain('@media (min-width: 992px)')
   })
 
   it('callout and hover cards no longer carry top/bottom margins', () => {

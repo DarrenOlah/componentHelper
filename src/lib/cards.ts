@@ -46,9 +46,13 @@ export interface CardColors {
 // under-filled line is centered instead of flush-left. Full lines are unaffected.
 export type CardAlign = 'left' | 'center'
 
+// Cards per row at the widest (desktop) breakpoint. 1-up is a single column at
+// every width; 5-up graduates 1 → 2 → 5 like 3-up/4-up do.
+export type CardsPerRow = 1 | 2 | 3 | 4 | 5
+
 export interface GenerateCardsInput {
   type: CardType
-  cardsPerRow: 2 | 3 | 4
+  cardsPerRow: CardsPerRow
   colors: CardColors
   cards: CardContent[]
   align?: CardAlign // defaults to 'left'
@@ -159,13 +163,19 @@ export function scopeId(type: CardType, colors: CardColors): string {
 
 // ---- Bootstrap column class for the chosen cards-per-row -------------------
 // Graduated breakpoints: 1 col < md (768), 2 cols at md, full count at lg (992).
-// 2-up reaches its final count at md, so it has no col-lg-* class.
-const COLUMN_CLASSES: Record<2 | 3 | 4, string> = {
+// 1-up stays a single column at every width (col-12 only). 2-up reaches its final
+// count at md, so it has no col-lg-* class. 3/4-up carry their full count on a real
+// col-lg-* class (12/3, 12/4 are integers, so the class is also a correct fallback).
+// 5-up has no exact Bootstrap class, so it uses a custom au-col-5 hook sized by the
+// scoped calc() override in cardGridCss (see LG_COL there).
+const COLUMN_CLASSES: Record<CardsPerRow, string> = {
+  1: 'col-12',
   2: 'col-12 col-md-6',
   3: 'col-12 col-md-6 col-lg-4',
   4: 'col-12 col-md-6 col-lg-3',
+  5: 'col-12 col-md-6 au-col-5',
 }
-export function columnClass(cardsPerRow: 2 | 3 | 4): string {
+export function columnClass(cardsPerRow: CardsPerRow): string {
   return COLUMN_CLASSES[cardsPerRow] ?? COLUMN_CLASSES[3]
 }
 
@@ -315,7 +325,7 @@ ${generateCardsHtml(input, { revealHover: opts.revealHover })}
 // autosave draft and a saved collection store. Mirrors CardsState in CardsTool.
 export interface CardsSnapshot {
   type: CardType
-  cardsPerRow: 2 | 3 | 4
+  cardsPerRow: CardsPerRow
   align: CardAlign
   accent: string
   accentText: string
@@ -327,7 +337,7 @@ export interface CardsSnapshot {
 const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover']
 const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center']
 const PREVIEW_CONTEXTS: readonly PreviewContext[] = ['none', 'left', 'both']
-const PER_ROW_VALUES: readonly (2 | 3 | 4)[] = [2, 3, 4]
+const PER_ROW_VALUES: readonly CardsPerRow[] = [1, 2, 3, 4, 5]
 
 function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null

@@ -15,6 +15,7 @@ import {
   type CardType,
   type CardContent,
   type CardAlign,
+  type CardsPerRow,
   type PreviewContext,
   type GenerateCardsInput,
   type CardsSnapshot,
@@ -30,7 +31,7 @@ interface CardItem extends CardContent {
 
 interface CardsState {
   type: CardType
-  cardsPerRow: 2 | 3 | 4
+  cardsPerRow: CardsPerRow
   align: CardAlign
   accent: string
   accentText: string
@@ -85,7 +86,7 @@ function makeCard(content: CardContent = makeDefaultCard()): CardItem {
 function defaultSettings() {
   return {
     type: 'icon' as CardType,
-    cardsPerRow: 3 as 2 | 3 | 4,
+    cardsPerRow: 3 as CardsPerRow,
     align: 'left' as CardAlign,
     accent: DEFAULT_CARD_COLORS.accent,
     accentText: DEFAULT_CARD_COLORS.accentText,
@@ -176,7 +177,7 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
   { id: 'hover', label: 'Hover', blurb: 'Image with a panel that slides up on hover/focus.' },
 ]
 
-const PER_ROW: (2 | 3 | 4)[] = [2, 3, 4]
+const PER_ROW: CardsPerRow[] = [1, 2, 3, 4, 5]
 
 const ALIGNS: { id: CardAlign; label: string }[] = [
   { id: 'left', label: 'Left' },
@@ -756,7 +757,7 @@ export function CardsTool() {
           <div className="flex gap-2">
             {PER_ROW.map(n => (
               <button key={n} type="button" onClick={() => setState(s => ({ ...s, cardsPerRow: n }))} className={segBtn(cardsPerRow === n)}>
-                {n}-up
+                {n}
               </button>
             ))}
           </div>

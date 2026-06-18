@@ -73,6 +73,26 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       buttonHref: '/h',
     })
   })
+
+  it('recovers 1-up (col-12 only) and 5-up (col-lg-2 hook) layouts', () => {
+    const oneUp = roundTrip({
+      type: 'icon',
+      cardsPerRow: 1,
+      align: 'left',
+      colors,
+      cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
+    })!
+    expect(oneUp.cardsPerRow).toBe(1)
+
+    const fiveUp = roundTrip({
+      type: 'icon',
+      cardsPerRow: 5,
+      align: 'left',
+      colors,
+      cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
+    })!
+    expect(fiveUp.cardsPerRow).toBe(5)
+  })
 })
 
 describe('parseCardsHtml — best-effort degradation', () => {
