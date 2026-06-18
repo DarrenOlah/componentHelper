@@ -955,7 +955,7 @@ export function CardsTool() {
                 )}
                 {card.external && isRelativeHref(card.buttonHref) && (
                   <p className="mt-1 text-[11px] text-amber-600">
-                    ⚠ This is a relative link — "open in a new tab" only suits full URLs to another site.
+                    ⚠ This is a relative link. "External link" is best suited to links to another site or links to files.
                   </p>
                 )}
               </div>
