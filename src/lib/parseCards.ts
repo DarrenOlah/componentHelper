@@ -94,6 +94,12 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   const txt = (el: Element | null) => (el?.textContent ?? '').trim()
   const attr = (el: Element | null, name: string) => el?.getAttribute(name) ?? ''
   const unplaceholder = (src: string) => (src === IMAGE_PLACEHOLDER ? '' : src)
+  // Read the fields shared by every type's link: label, href, and external flag.
+  const readAnchor = (a: Element) => ({
+    buttonText: txt(a),
+    buttonHref: attr(a, 'href'),
+    external: attr(a, 'target').toLowerCase() === '_blank',
+  })
 
   const cards: CardContent[] = []
   for (const el of cardEls) {
@@ -114,22 +120,16 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       card.body = txt(el.querySelector('[class*="__text"]'))
       const a = el.querySelector('[class*="__btn"]')
       if (!a) continue // a card with no link isn't usable — skip it, don't abort
-      card.buttonText = txt(a)
-      card.buttonHref = attr(a, 'href')
-      card.external = attr(a, 'target').toLowerCase() === '_blank'
+      Object.assign(card, readAnchor(a))
     } else if (type === 'callout') {
       const a = el.querySelector('[class*="__btn"]')
       if (!a) continue
-      card.buttonText = txt(a)
-      card.buttonHref = attr(a, 'href')
-      card.external = attr(a, 'target').toLowerCase() === '_blank'
+      Object.assign(card, readAnchor(a))
     } else {
       // hover: the gold band (__title-link) is the single stretched link.
       const a = el.querySelector('[class*="__title-link"]')
       if (!a) continue
-      card.buttonText = txt(a)
-      card.buttonHref = attr(a, 'href')
-      card.external = attr(a, 'target').toLowerCase() === '_blank'
+      Object.assign(card, readAnchor(a))
       card.body = txt(el.querySelector('[class*="__desc"]'))
       card.ctaText = txt(el.querySelector('[class*="__cta"]'))
     }

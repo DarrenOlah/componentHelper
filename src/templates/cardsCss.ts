@@ -185,8 +185,6 @@ ${varsBlock(v)}
     background: var(--au-surface);
   }
   .${inst}:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
-  /* min-height is a small-width floor; generateCardsHtml may append an aspect-ratio
-     rule on .${inst} so the card grows in height (see IMAGE_ASPECTS in cards.ts). */
   .${inst}__img {
     position: absolute;
     inset: 0;
@@ -242,6 +240,10 @@ ${varsBlock(v)}
 // ---- Hover card: full-cover image + sliding panel revealed on hover/focus -----
 // `revealable` adds a preview-only `--open` class + open-state rules so the live
 // preview can show the revealed state (never emitted on the copy path).
+// Two non-obvious rules below: the __box `transition` is !important so host skins'
+// broad transitions can't override it (panel would snap instead of glide); the gold
+// band (__title-link) is kept unpositioned so its ::after overlay resolves to __box
+// and covers the whole card.
 export function hoverCardCss(inst: string, v: CardCssVars, opts: { revealable?: boolean } = {}): string {
   const reveal = opts.revealable
     ? `
@@ -264,8 +266,6 @@ ${varsBlock(v)}
     color: var(--au-text);
   }
   .${inst}:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
-  /* min-height is a small-width floor; generateCardsHtml may append an aspect-ratio
-     rule on .${inst} so the card grows in height (see IMAGE_ASPECTS in cards.ts). */
   .${inst}__img {
     position: absolute;
     inset: 0;
@@ -285,8 +285,6 @@ ${varsBlock(v)}
     flex-direction: column;
     text-align: center;
     background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6) 30%);
-    /* !important: host skins apply a broad transition (e.g. all .15s) that
-       otherwise overrides this and makes the panel snap up instead of gliding. */
     transition: top 0.5s ease-in-out, padding-top 0.5s ease-in-out !important;
   }
   .${inst}:hover .${inst}__box,
@@ -312,9 +310,6 @@ ${varsBlock(v)}
     color: var(--au-text) !important;
     text-shadow: 0 -2px 8px rgba(0, 0, 0, 0.6);
   }
-  /* The gold band is the card's single stretched link. Kept unpositioned so its
-     ::after overlay resolves to __box and covers the whole card; color inherits
-     from __title so it follows the rest/hover band color. */
   .${inst}__title-link,
   .${inst}__title-link:link,
   .${inst}__title-link:visited,
@@ -326,8 +321,6 @@ ${varsBlock(v)}
     justify-content: center;
     width: 100%;
     height: 100%;
-    /* Host skins style a:hover with a yellow background; keep the link
-       transparent in every state so only __title drives the band color. */
     background: transparent !important;
     color: inherit !important;
     text-decoration: none !important;
@@ -350,8 +343,6 @@ ${varsBlock(v)}
     font-weight: 400 !important;
     font-size: 16px !important;
   }
-  /* Optional, non-anchor CTA text. The whole-card overlay (on __title-link) makes
-     it clickable; kept as plain text so the card has a single focusable link. */
   .${inst}__cta {
     display: inline-block;
     align-self: center;
