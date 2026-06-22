@@ -165,7 +165,7 @@ function loadDraft(knownCollectionIds: ReadonlySet<string>): LoadedDraft {
   } catch {
     // fall through to defaults on parse/storage error
   }
-  return { state: initialState(), revealHover: true, previewContext: 'left', loadedId: null }
+  return { state: initialState(), revealHover: false, previewContext: 'left', loadedId: null }
 }
 
 const inputCls =
@@ -477,7 +477,7 @@ export function CardsTool() {
       // ignore disabled-storage errors
     }
     setState(initialState())
-    setRevealHover(true)
+    setRevealHover(false)
     setPreviewContext('left')
     setLoadedId(null)
     setCopied(false)
