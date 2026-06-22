@@ -355,7 +355,8 @@ ${varsBlock(v)}
     font-size: 18px !important;
   }
   @media (prefers-reduced-motion: reduce) {
-    .${inst}__box { transition: none !important; }
+    .${inst}__box,
+    .${inst}__title { transition: none !important; }
   }${reveal}`
 }
 

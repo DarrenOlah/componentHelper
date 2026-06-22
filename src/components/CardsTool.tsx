@@ -277,6 +277,17 @@ export function CardsTool() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [revealHover, setRevealHover] = useState(draft.revealHover)
   const [previewContext, setPreviewContext] = useState<PreviewContext>(draft.previewContext)
+  // Mirrors the OS/browser "Prefers reduced motion" setting — the same signal the
+  // generated CSS keys off, so we can warn that the reveal won't animate in preview.
+  const [reducedMotion, setReducedMotion] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = () => setReducedMotion(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   const [loadedId, setLoadedId] = useState<string | null>(draft.loadedId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -1059,6 +1070,9 @@ export function CardsTool() {
               <label className="flex items-center gap-1.5 text-[11px] text-gray-600">
                 <input type="checkbox" checked={revealHover} onChange={e => setRevealHover(e.target.checked)} />
                 Show revealed state
+                {reducedMotion && (
+                  <span className="text-gray-400">(This computer has "prefers reduced motion" on. The sliding reveal won't animate.)</span>
+                )}
               </label>
             )}
             <button
