@@ -884,33 +884,49 @@ export function CardsTool() {
                   placeholder="/Portals/0/… or https://…"
                   className={`${inputCls} font-mono mb-1.5`}
                 />
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                  Image alt text
+                </label>
                 <input
                   type="text"
                   value={card.imageAlt}
                   onChange={e => updateCard(card.id, { imageAlt: e.target.value })}
-                  placeholder="Image alt text (describe the image)"
+                  placeholder="Describe the image"
                   className={`${inputCls} mb-1.5`}
                 />
 
                 {showHeading && (
-                  <input
-                    type="text"
-                    value={card.heading}
-                    onChange={e => updateCard(card.id, { heading: e.target.value })}
-                    placeholder="Heading (optional)"
-                    className={`${inputCls} mb-1.5`}
-                  />
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                      Heading (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={card.heading}
+                      onChange={e => updateCard(card.id, { heading: e.target.value })}
+                      placeholder="Heading (optional)"
+                      className={`${inputCls} mb-1.5`}
+                    />
+                  </>
                 )}
                 {showBody && (
-                  <textarea
-                    value={card.body}
-                    onChange={e => updateCard(card.id, { body: e.target.value })}
-                    placeholder="Body text (optional)"
-                    rows={2}
-                    className={`${inputCls} mb-1.5 resize-y`}
-                  />
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                      Body text (optional)
+                    </label>
+                    <textarea
+                      value={card.body}
+                      onChange={e => updateCard(card.id, { body: e.target.value })}
+                      placeholder="Body text (optional)"
+                      rows={2}
+                      className={`${inputCls} mb-1.5 resize-y`}
+                    />
+                  </>
                 )}
 
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                  Button text *
+                </label>
                 <input
                   type="text"
                   value={card.buttonText}
@@ -919,14 +935,22 @@ export function CardsTool() {
                   className={`${inputCls} mb-1.5`}
                 />
                 {type === 'hover' && (
-                  <input
-                    type="text"
-                    value={card.ctaText}
-                    onChange={e => updateCard(card.id, { ctaText: e.target.value })}
-                    placeholder="CTA text (optional)"
-                    className={`${inputCls} mb-1.5`}
-                  />
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                      CTA text (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={card.ctaText}
+                      onChange={e => updateCard(card.id, { ctaText: e.target.value })}
+                      placeholder="CTA text (optional)"
+                      className={`${inputCls} mb-1.5`}
+                    />
+                  </>
                 )}
+                <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                  Button URL *
+                </label>
                 <input
                   type="text"
                   value={card.buttonHref}
