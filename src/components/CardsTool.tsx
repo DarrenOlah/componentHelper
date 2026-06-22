@@ -298,7 +298,9 @@ export function CardsTool() {
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
-  const [importNote, setImportNote] = useState<string | null>(null)
+  // When set, the modal swaps from the paste form to a confirmation screen carrying
+  // note-worthy info about the import (e.g. colors fell back to defaults).
+  const [importSummary, setImportSummary] = useState<string | null>(null)
   // The App nav-row portal targets; resolved after mount (App.tsx renders them).
   const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
   const [navCenter, setNavCenter] = useState<HTMLElement | null>(null)
@@ -610,14 +612,17 @@ export function CardsTool() {
   }
 
   // ---- import (parse pasted HTML back into the editor) ----
-  const handleImport = () => {
-    const parsed = parseCardsHtml(importText)
+  // Parse `text` and load it into the editor. Called on paste (clipboard string) and from
+  // the "Load cards" button (the textarea value, for hand-edited HTML or a failed retry).
+  const attemptImport = (text: string) => {
+    const parsed = parseCardsHtml(text)
     if (!parsed) {
-      setImportNote(null)
       setImportError("Couldn't recognize any cards in that HTML. Paste the code this tool generated (the whole block, or at least the card markup).")
       return
     }
-    if (!window.confirm('Replace the cards currently in the editor with the imported ones?')) return
+    // Only guard against overwriting unsaved work; a fresh or saved-and-unmodified editor
+    // (isDirty === false) is safe to replace silently.
+    if (isDirty && !window.confirm('Replace the cards currently in the editor with the imported ones?')) return
     setState({
       type: parsed.type,
       cardsPerRow: parsed.cardsPerRow,
@@ -631,13 +636,19 @@ export function CardsTool() {
     })
     setLoadedId(null) // imported content isn't tied to a saved collection
     setImportError(null)
-    setImportText('')
     const n = parsed.cards.length
-    const colorsDefaulted = !/--au-gold/.test(importText)
-    setImportNote(
-      `Imported ${n} card${n === 1 ? '' : 's'}.` +
-        (colorsDefaulted ? ' Colors weren’t found in the paste, so defaults were applied.' : ''),
-    )
+    const colorsDefaulted = !/--au-gold/.test(text)
+    if (colorsDefaulted) {
+      // Note-worthy: switch to the confirmation screen so the caveat is read before leaving.
+      setImportSummary(
+        `Imported ${n} card${n === 1 ? '' : 's'}. Colors weren’t found in the paste, so defaults were applied.`,
+      )
+    } else {
+      // Clean import: nothing to flag — apply and close immediately.
+      setImportOpen(false)
+      setImportText('')
+      setImportSummary(null)
+    }
   }
 
   // ---- keyboard + unload guards ----
@@ -1144,7 +1155,7 @@ export function CardsTool() {
               type="button"
               onClick={() => {
                 setImportError(null)
-                setImportNote(null)
+                setImportSummary(null)
                 setImportOpen(true)
               }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
@@ -1444,42 +1455,68 @@ export function CardsTool() {
               </button>
             </div>
 
-            <div className="px-4 py-3 space-y-2">
-              <p className="text-xs text-gray-500">
-                Paste a card block this tool generated to recover its editable fields. A partial paste (just the
-                markup, no <code className="text-[11px]">&lt;style&gt;</code>) works too — colors then fall back to defaults.
-              </p>
-              <textarea
-                value={importText}
-                onChange={e => setImportText(e.target.value)}
-                placeholder="Paste the generated HTML here…"
-                rows={8}
-                className={`${inputCls} font-mono resize-y`}
-              />
-              {importError && <p className="text-xs text-red-600">{importError}</p>}
-              {importNote && <p className="text-xs text-green-600">{importNote}</p>}
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImportText('')
-                    setImportError(null)
-                    setImportNote(null)
-                  }}
-                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-50"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImport}
-                  disabled={!importText.trim()}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Load cards
-                </button>
+            {importSummary ? (
+              // Confirmation screen: shown after a note-worthy import (e.g. colors defaulted).
+              <div className="px-4 py-3 space-y-3">
+                <p className="text-sm text-gray-700">{importSummary}</p>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportOpen(false)
+                      setImportText('')
+                      setImportSummary(null)
+                      setImportError(null)
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+                  >
+                    OK
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-xs text-gray-500">
+                  Paste a card block this tool generated to recover its editable fields. A partial paste (just the
+                  markup, no <code className="text-[11px]">&lt;style&gt;</code>) works too — colors then fall back to defaults.
+                </p>
+                <textarea
+                  value={importText}
+                  onChange={e => setImportText(e.target.value)}
+                  onPaste={e => {
+                    const text = e.clipboardData.getData('text')
+                    if (!text.trim()) return
+                    e.preventDefault()
+                    setImportText(text) // box reflects the paste (useful if it fails to parse)
+                    attemptImport(text)
+                  }}
+                  placeholder="Paste the generated HTML here…"
+                  rows={8}
+                  className={`${inputCls} font-mono resize-y`}
+                />
+                {importError && <p className="text-xs text-red-600">{importError}</p>}
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportText('')
+                      setImportError(null)
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-50"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => attemptImport(importText)}
+                    disabled={!importText.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Load cards
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
