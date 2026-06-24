@@ -314,6 +314,38 @@ export function CardsTool() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
+  // Cap each editor column to the space between its top and the footer, then let it
+  // scroll. So the cards column can scroll for editing while the live-preview column
+  // stays put. Wide (side-by-side) layout only — when stacked, the page scrolls as one.
+  const editorRowRef = useRef<HTMLDivElement>(null)
+  const [colMaxH, setColMaxH] = useState<number | undefined>(undefined)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)')
+    const update = () => {
+      const el = editorRowRef.current
+      if (!el || !mq.matches) {
+        setColMaxH(undefined)
+        return
+      }
+      const top = el.getBoundingClientRect().top + window.scrollY
+      const footer = document.querySelector('footer')
+      const footerH = footer ? footer.getBoundingClientRect().height : 24
+      setColMaxH(Math.max(280, window.innerHeight - top - footerH - 12))
+    }
+    update()
+    window.addEventListener('resize', update)
+    mq.addEventListener('change', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      mq.removeEventListener('change', update)
+    }
+  }, [])
+  // Per-column scroll style: definite max-height + own scrollbar, with a little right
+  // padding so the scrollbar doesn't sit on the controls. Undefined when stacked.
+  const colScrollStyle = colMaxH
+    ? { maxHeight: colMaxH, overflowY: 'auto' as const, paddingRight: '0.25rem' }
+    : undefined
+
   const [loadedId, setLoadedId] = useState<string | null>(draft.loadedId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Inline rename of the open file's name from the nav row.
@@ -801,10 +833,10 @@ export function CardsTool() {
           navCenter,
         )}
 
-      <div className="flex flex-col xl:flex-row gap-4 items-start">
+      <div ref={editorRowRef} className="flex flex-col xl:flex-row gap-4 items-start">
 
       {/* ── COLUMN 1: Type & layout + Colors ── */}
-      <div className="w-full xl:w-80 shrink-0 space-y-4">
+      <div className="w-full xl:w-80 shrink-0 space-y-4" style={colScrollStyle}>
 
         {/* Section 1: Type & layout */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -930,7 +962,7 @@ export function CardsTool() {
       </div>{/* ── END COLUMN 1 ── */}
 
       {/* ── COLUMN 2: Card content ── */}
-      <div className="w-full xl:w-80 shrink-0 space-y-4">
+      <div className="w-full xl:w-80 shrink-0 space-y-4" style={colScrollStyle}>
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <SectionLabel number={3} title={`Cards (${cards.length})`} done={isComplete} />
           <div className="space-y-3">
@@ -1210,7 +1242,7 @@ export function CardsTool() {
       </div>{/* ── END COLUMN 2 ── */}
 
       {/* ── COLUMN 3: Live preview (top) + generated HTML (below) ── */}
-      <div className="w-full xl:flex-1 min-w-0 space-y-4">
+      <div className="w-full xl:flex-1 min-w-0 space-y-4" style={colScrollStyle}>
 
         {/* Preview */}
         <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
