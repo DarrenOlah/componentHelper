@@ -101,6 +101,30 @@ export default function IconPicker({ open, value, onPick, onClose }: IconPickerP
     return out
   }, [catalog, debounced, styles])
 
+  // Position the scroll on open: center the currently-selected icon so its neighbors
+  // are visible (fast iteration when picking adjacent glyphs), falling back to the top
+  // when nothing is selected or the selection is filtered out. The picker is never
+  // unmounted (it returns null while closed), so scrollTop state persists across opens
+  // while the scroll container DOM remounts at 0 — this also resyncs that mismatch,
+  // which would otherwise render the virtualized window off-screen (blank grid). Runs
+  // once per open via the ref, waiting until the catalog is loaded and the box measured.
+  const didInitialScroll = useRef(false)
+  useEffect(() => {
+    if (!open) didInitialScroll.current = false
+  }, [open])
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!open || !el || didInitialScroll.current || !catalog || el.clientWidth === 0) return
+    didInitialScroll.current = true
+    const colsNow = Math.max(1, Math.floor(el.clientWidth / TILE_MIN))
+    const idx = value ? tiles.findIndex(t => t.cls === value) : -1
+    const row = idx >= 0 ? Math.floor(idx / colsNow) : 0
+    // Center the selected row in the viewport when there's room above it.
+    const target = Math.max(0, row * ROW_H - Math.max(0, (el.clientHeight - ROW_H) / 2))
+    el.scrollTop = target
+    setScrollTop(target)
+  }, [open, catalog, size, tiles, value])
+
   if (!open) return null
 
   const cols = Math.max(1, Math.floor((size.w || TILE_MIN) / TILE_MIN))
