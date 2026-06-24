@@ -2,14 +2,16 @@
 // for the icon/logo cards. Renders the full FA Free 6.4.2 catalog (lazy-loaded from
 // the committed src/data/faCatalog.ts) in a virtualized grid so thousands of tiles
 // scroll smoothly without flooding the DOM. Returns the class string the card stores
-// in `iconClass` (e.g. "fa-solid fa-house"). FA's CSS is loaded app-wide via
-// index.html, so the <i> tiles render real glyphs here.
+// in `iconClass` (e.g. "fa-solid fa-house"). FA's CSS is bundled app-wide via
+// main.tsx, so the <i> tiles render real glyphs here.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FaIcon, FaStyle } from '../data/faCatalog'
 
 interface IconPickerProps {
   open: boolean
   value: string // current iconClass, for highlight
+  search: string // current search text (owned by the parent, remembered per card)
+  onSearchChange: (search: string) => void
   onPick: (iconClass: string) => void
   onClose: () => void
 }
@@ -29,10 +31,8 @@ const TILE_MIN = 84 // px: target tile width → column count
 const ROW_H = 88 // px: fixed row height for virtualization
 const OVERSCAN = 3 // rows rendered above/below the viewport
 
-export default function IconPicker({ open, value, onPick, onClose }: IconPickerProps) {
+export default function IconPicker({ open, value, search, onSearchChange, onPick, onClose }: IconPickerProps) {
   const [catalog, setCatalog] = useState<FaIcon[] | null>(null)
-  const [query, setQuery] = useState('')
-  const [debounced, setDebounced] = useState('')
   const [styles, setStyles] = useState<Record<FaStyle, boolean>>({ s: true, r: true, b: true })
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -50,12 +50,6 @@ export default function IconPicker({ open, value, onPick, onClose }: IconPickerP
       alive = false
     }
   }, [open, catalog])
-
-  // Debounce the search box.
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim().toLowerCase()), 150)
-    return () => clearTimeout(t)
-  }, [query])
 
   // Esc to close.
   useEffect(() => {
@@ -89,7 +83,7 @@ export default function IconPicker({ open, value, onPick, onClose }: IconPickerP
   const tiles = useMemo<Tile[]>(() => {
     if (!catalog) return []
     const active = ALL_STYLES.filter(s => styles[s])
-    const q = debounced
+    const q = search.trim().toLowerCase()
     const out: Tile[] = []
     for (const ic of catalog) {
       if (q && !ic.n.includes(q) && !ic.t.some(t => t.includes(q))) continue
@@ -99,7 +93,7 @@ export default function IconPicker({ open, value, onPick, onClose }: IconPickerP
       }
     }
     return out
-  }, [catalog, debounced, styles])
+  }, [catalog, search, styles])
 
   // Position the scroll on open: center the currently-selected icon so its neighbors
   // are visible (fast iteration when picking adjacent glyphs), falling back to the top
@@ -151,17 +145,33 @@ export default function IconPicker({ open, value, onPick, onClose }: IconPickerP
         {/* Sticky toolbar */}
         <div className="flex items-center gap-3 p-3 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-sm font-semibold text-gray-800 whitespace-nowrap">Choose an icon</h2>
-          <input
-            type="text"
-            autoFocus
-            value={query}
-            onChange={e => {
-              setQuery(e.target.value)
-              resetScroll()
-            }}
-            placeholder="Search icons (e.g. house, arrow, youtube)…"
-            className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative flex-1 min-w-0">
+            <input
+              type="text"
+              autoFocus
+              value={search}
+              onChange={e => {
+                onSearchChange(e.target.value)
+                resetScroll()
+              }}
+              placeholder="Search icons (e.g. house, arrow, youtube)…"
+              className="w-full pl-3 pr-8 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSearchChange('')
+                  resetScroll()
+                }}
+                aria-label="Clear search"
+                title="Clear search"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <div className="flex gap-1">
             {ALL_STYLES.map(s => (
               <button
@@ -201,7 +211,7 @@ export default function IconPicker({ open, value, onPick, onClose }: IconPickerP
             <div className="h-full flex items-center justify-center text-sm text-gray-400">Loading icons…</div>
           ) : tiles.length === 0 ? (
             <div className="h-full flex items-center justify-center text-sm text-gray-400">
-              No icons match “{debounced}”.
+              No icons match “{search.trim()}”.
             </div>
           ) : (
             <div style={{ height: totalHeight, position: 'relative' }}>

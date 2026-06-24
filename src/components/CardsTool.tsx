@@ -346,6 +346,9 @@ export function CardsTool() {
   const [stripped, setStripped] = useState<{ cardId: number; original: string; origin: string } | null>(null)
   // The card id whose Font Awesome picker is open (icon/logo only), or null.
   const [iconPickerFor, setIconPickerFor] = useState<number | null>(null)
+  // Per-card icon-picker search text, remembered across opens (transient UI state —
+  // not part of the card content, never persisted). Keyed by card id.
+  const [iconSearchByCard, setIconSearchByCard] = useState<Record<number, string>>({})
 
   const { type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards } = state
 
@@ -1687,6 +1690,10 @@ export function CardsTool() {
       <IconPicker
         open={iconPickerFor !== null}
         value={cards.find(c => c.id === iconPickerFor)?.iconClass ?? ''}
+        search={iconPickerFor !== null ? (iconSearchByCard[iconPickerFor] ?? '') : ''}
+        onSearchChange={s => {
+          if (iconPickerFor !== null) setIconSearchByCard(m => ({ ...m, [iconPickerFor]: s }))
+        }}
         onPick={cls => {
           if (iconPickerFor !== null) updateCard(iconPickerFor, { iconClass: cls, iconMode: 'fa' })
         }}
