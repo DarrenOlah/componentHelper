@@ -1026,22 +1026,26 @@ export function CardsTool() {
                     {card.iconMode === 'fa' ? (
                       card.iconClass ? (
                         <div className="flex items-center gap-2 mb-1.5 p-2 border border-gray-200 rounded-lg">
-                          <i className={`${card.iconClass} text-3xl text-gray-700 w-8 text-center`} aria-hidden="true" />
-                          <code className="flex-1 min-w-0 truncate text-[11px] text-gray-500">{card.iconClass}</code>
-                          <button
-                            type="button"
-                            onClick={() => setIconPickerFor(card.id)}
-                            className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
-                          >
-                            Change
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateCard(card.id, { iconClass: '' })}
-                            className="px-2 py-1 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50"
-                          >
-                            Clear
-                          </button>
+                          <i className={`${card.iconClass} text-3xl text-gray-700 w-8 text-center shrink-0`} aria-hidden="true" />
+                          <div className="flex-1 min-w-0">
+                            <code className="block truncate text-right text-[11px] text-gray-500 mb-1">{card.iconClass}</code>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setIconPickerFor(card.id)}
+                                className="px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
+                              >
+                                Change
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateCard(card.id, { iconClass: '' })}
+                                className="px-2 py-0.5 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <button
