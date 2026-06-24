@@ -116,7 +116,7 @@ ${varsBlock(v)}
     transform: translateX(-50%);
     width: 90px;
     height: 90px;
-    border: 3px solid var(--au-text);
+    border: 3px solid #ffffff;
     object-fit: cover;
     object-position: center;
     background: var(--au-surface);
