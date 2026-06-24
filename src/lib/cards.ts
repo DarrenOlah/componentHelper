@@ -3,7 +3,7 @@
 // drawer.ts). The visual source of truth for the card CSS is demo/cards/cards.html.
 
 import { HELPER_URL } from './config'
-import { escapeHtmlAttr, escapeHtmlText, safeHref, safeColor, safeImageSrc } from './sanitize'
+import { escapeHtmlAttr, escapeHtmlText, safeHref, safeColor, safeImageSrc, sanitizeIconClass } from './sanitize'
 import { previewFontFaceCss } from './previewFonts'
 import {
   iconCardCss,
@@ -18,11 +18,22 @@ import {
 
 export type CardType = 'icon' | 'callout' | 'hover' | 'logo'
 
+// Icon source for the icon/logo cards: a Font Awesome glyph or an image. The live
+// site already loads FA Free 6.4.2, so FA mode emits only class-based <i> markup
+// (no FA CSS / @font-face ships in the output). Other card types ignore this.
+export const ICON_MODES = ['image', 'fa'] as const
+export type CardIconMode = (typeof ICON_MODES)[number]
+
 // One card's editable content. Each markup builder reads only the fields its type
 // uses (callout ignores heading/body; only hover/icon use them).
 export interface CardContent {
   imageSrc: string // icon: the square icon; callout/hover: the cover photo
   imageAlt: string
+  // icon/logo only: 'fa' renders a Font Awesome <i> from iconClass instead of the
+  // image; 'image' renders <img> from imageSrc. Both values are retained across
+  // toggles so switching modes never discards what the user typed.
+  iconMode: CardIconMode
+  iconClass: string // FA classes when iconMode==='fa', e.g. "fa-solid fa-house"
   heading: string // icon __title only (omitted when blank)
   body: string // icon __text, hover __desc (omitted when blank)
   buttonText: string // icon/callout __btn, hover __title (gold band)
@@ -130,6 +141,8 @@ export function makeDefaultCard(): CardContent {
   return {
     imageSrc: '',
     imageAlt: '',
+    iconMode: 'image',
+    iconClass: '',
     heading: '',
     body: '',
     buttonText: '',
@@ -239,10 +252,24 @@ function commonFields(card: CardContent) {
   }
 }
 
+// The icon box for the icon/logo cards: an FA <i> (decorative, aria-hidden — the
+// card's accessible name comes from its button/title link) or the <img>. The FA
+// glyph lives in a <span> that keeps the instance __icon class, so the shared box
+// CSS still applies and the importer's [class*="__icon"] selector still matches.
+// Branches on iconMode (not emptiness); the && guard falls back to the image if FA
+// mode somehow has no valid class. No FA CSS ships — the live site provides it.
+function cardIconMarkup(inst: string, card: CardContent, src: string, alt: string): string {
+  const fa = sanitizeIconClass(card.iconClass)
+  if (card.iconMode === 'fa' && fa) {
+    return `          <span class="${inst}__icon ${inst}__icon--fa"><i class="${fa}" aria-hidden="true"></i></span>`
+  }
+  return `          <img class="${inst}__icon" src="${src}" alt="${alt}" />`
+}
+
 function iconCardMarkup(inst: string, card: CardContent): string {
   const { src, alt, href, heading, body, label, linkAttrs } = commonFields(card)
   return [
-    `          <img class="${inst}__icon" src="${src}" alt="${alt}" />`,
+    cardIconMarkup(inst, card, src, alt),
     ...(heading ? [`          <h3 class="${inst}__title">${escapeHtmlText(heading)}</h3>`] : []),
     ...(body ? [`          <p class="${inst}__text">${escapeHtmlText(body)}</p>`] : []),
     `          <a class="${inst}__btn" href="${href}"${linkAttrs}>${label}</a>`,
@@ -285,7 +312,7 @@ function logoCardMarkup(inst: string, card: CardContent): string {
   const revealable = !!(body || cta)
   const boxCls = revealable ? `${inst}__box ${inst}__box--reveal` : `${inst}__box`
   return [
-    `          <div class="${inst}__media"><img class="${inst}__icon" src="${src}" alt="${alt}" /></div>`,
+    `          <div class="${inst}__media">${cardIconMarkup(inst, card, src, alt).trimStart()}</div>`,
     `          <div class="${boxCls}">`,
     `            <h3 class="${inst}__title"><a class="${inst}__title-link" href="${href}"${linkAttrs}>${label}</a></h3>`,
     ...(body ? [`            <span class="${inst}__desc">${escapeHtmlText(body)}</span>`] : []),
@@ -369,6 +396,7 @@ export function generateCardsPreviewHtml(input: GenerateCardsInput, opts: Render
 <html lang="en">
 <head>
 <meta charset="utf-8" />
+<link rel="stylesheet" href="${import.meta.env.BASE_URL}fontawesome/css/all.min.css" />
 <style>
   ${previewFontFaceCss()}
   ${PREVIEW_BOOTSTRAP_GRID_CSS}
@@ -433,6 +461,10 @@ function coerceCardContent(raw: unknown): CardContent {
   return {
     imageSrc: str(raw.imageSrc, d.imageSrc),
     imageAlt: str(raw.imageAlt, d.imageAlt),
+    iconMode: oneOf(raw.iconMode, ICON_MODES, d.iconMode),
+    // Sanitize at coerce time too, so a hand-edited/stale blob can't carry a junk
+    // class through to generation (defense in depth alongside the markup builder).
+    iconClass: sanitizeIconClass(str(raw.iconClass, d.iconClass)),
     heading: str(raw.heading, d.heading),
     body: str(raw.body, d.body),
     buttonText: str(raw.buttonText, d.buttonText),
@@ -562,6 +594,8 @@ export function snapshotsEqual(a: CardsSnapshot, b: CardsSnapshot): boolean {
     return (
       c.imageSrc === o.imageSrc &&
       c.imageAlt === o.imageAlt &&
+      c.iconMode === o.iconMode &&
+      c.iconClass === o.iconClass &&
       c.heading === o.heading &&
       c.body === o.body &&
       c.buttonText === o.buttonText &&

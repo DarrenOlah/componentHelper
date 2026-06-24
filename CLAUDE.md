@@ -47,6 +47,23 @@ The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
 - `public/fonts/` — brand G.I. `woff2` fonts, served at `base`. Loaded via
   `@font-face` **into the preview iframe only** (`generateDrawerPreviewHtml`), so
   the preview renders in the real typeface; the copy output stays `@font-face`-free.
+- `src/components/IconPicker.tsx` — Font Awesome icon picker (dense, virtualized
+  modal) for the **icon/logo** cards. A card's `iconMode: 'image' | 'fa'` chooses
+  between its `imageSrc` image and an FA glyph (`iconClass`, e.g. `fa-solid fa-house`);
+  both values persist across toggles. FA mode emits class-based `<i aria-hidden>`
+  markup only — **no FA CSS ships** (the live site already loads FA Free 6.4.2).
+- `src/data/faCatalog.ts` — **generated** compact FA Free 6.4.2 catalog (name +
+  free styles + search terms), lazy-imported by IconPicker. Regenerate after a FA
+  version bump with `npm run gen:fa` (reads `scripts/genFaCatalog.mjs`); the output
+  is committed so `build` needs no generation/network step.
+- FA CSS loads in-tool two ways, never in the copy output: the **app UI** (picker +
+  editor chips) imports `@fortawesome/fontawesome-free/css/all.min.css` in
+  `main.tsx` (bundled — base/HMR-proof); the **preview iframe** (`srcDoc`, can't use
+  bundler imports) links `public/fontawesome/css/all.min.css` via `BASE_URL` in
+  `generateCardsPreviewHtml`. `public/fontawesome/` holds FA Free 6.4.2 `all.min.css`
+  + webfonts (copied from the devDep) for that iframe link. Keep this version,
+  `src/data/faCatalog.ts`, and the `@fortawesome/fontawesome-free` pin all matching
+  the live site's FA version.
 - `demo/` — the original standalone HTML demo and brand fonts. Reference only.
 
 ## Conventions

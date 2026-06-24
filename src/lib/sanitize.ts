@@ -68,3 +68,25 @@ const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 export function safeColor(raw: string, fallback: string): string {
   return HEX_COLOR.test(raw.trim()) ? raw.trim() : fallback
 }
+
+// ---- Font Awesome class safety (class-attribute context) -------------------
+// The icon/logo cards can emit `<i class="...">` for an FA glyph. Validate the
+// class string before it lands in the attribute: each token must match the FA
+// naming shape (fa-solid, fa-house, fa-fw, ...), so nothing can carry a quote,
+// space, '<', '>', '=' or scheme out of the attribute. Tokens are kept in order,
+// deduped, and capped (a style prefix + name + a couple modifiers is plenty).
+// Returns '' when nothing valid survives, which the generator treats as "no icon".
+const FA_TOKEN = /^fa-[a-z0-9-]+$/
+const FA_MAX_TOKENS = 4
+export function sanitizeIconClass(raw: string): string {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const t of raw.trim().split(/\s+/)) {
+    if (FA_TOKEN.test(t) && !seen.has(t)) {
+      seen.add(t)
+      out.push(t)
+      if (out.length >= FA_MAX_TOKENS) break
+    }
+  }
+  return out.join(' ')
+}

@@ -16,8 +16,10 @@ import {
   type CardImageAspect,
   type CardIconFit,
   type CardRevealBg,
+  type CardIconMode,
   type GenerateCardsInput,
 } from './cards'
+import { sanitizeIconClass } from './sanitize'
 import { IMAGE_PLACEHOLDER } from './sanitize'
 
 // Full count is carried by col-lg-* (3/4-up); 2-up tops out at col-md-6 and 1-up
@@ -119,9 +121,18 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   const cards: CardContent[] = []
   for (const el of cardEls) {
     const img = el.querySelector('[class*="__icon"], [class*="__img"]')
+    // FA mode (icon/logo): the __icon wrapper holds an <i> carrying fa- classes
+    // instead of an <img>. Filter to fa- tokens so a hand-edited/rendered paste
+    // can't smuggle junk. When present, image fields stay empty (the wrapper has
+    // no src/alt) and the card renders the glyph.
+    const faEl = img?.querySelector('[class*="fa-"]') ?? null
+    const iconClass = faEl ? sanitizeIconClass(faEl.className) : ''
+    const iconMode: CardIconMode = iconClass ? 'fa' : 'image'
     const card: CardContent = {
       imageSrc: unplaceholder(attr(img, 'src')),
       imageAlt: attr(img, 'alt'),
+      iconMode,
+      iconClass,
       heading: '',
       body: '',
       buttonText: '',

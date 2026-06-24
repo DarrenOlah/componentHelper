@@ -28,6 +28,7 @@ import {
 import { parseCardsHtml } from '../lib/parseCards'
 import { SectionLabel } from './SectionLabel'
 import { ColorField, tabTextFor } from './ColorField'
+import IconPicker from './IconPicker'
 
 interface CardItem extends CardContent {
   id: number
@@ -134,6 +135,8 @@ function toSnapshot(state: CardsState): CardsSnapshot {
     cards: state.cards.map(c => ({
       imageSrc: c.imageSrc,
       imageAlt: c.imageAlt,
+      iconMode: c.iconMode,
+      iconClass: c.iconClass,
       heading: c.heading,
       body: c.body,
       buttonText: c.buttonText,
@@ -341,6 +344,8 @@ export function CardsTool() {
   // (on blur). Holds the pre-strip URL so Undo / "Make external" can restore it.
   // One at a time — editing another field's URL just moves the receipt.
   const [stripped, setStripped] = useState<{ cardId: number; original: string; origin: string } | null>(null)
+  // The card id whose Font Awesome picker is open (icon/logo only), or null.
+  const [iconPickerFor, setIconPickerFor] = useState<number | null>(null)
 
   const { type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards } = state
 
@@ -375,9 +380,11 @@ export function CardsTool() {
       revealBg,
       align,
       colors: { accent, accentText, surface, text },
-      cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, ctaText, buttonHref, external }) => ({
+      cards: cards.map(({ imageSrc, imageAlt, iconMode, iconClass, heading, body, buttonText, ctaText, buttonHref, external }) => ({
         imageSrc,
         imageAlt,
+        iconMode,
+        iconClass,
         heading,
         body,
         buttonText,
@@ -959,31 +966,103 @@ export function CardsTool() {
                   </div>
                 </div>
 
-                <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                  {type === 'icon' || type === 'logo' ? 'Icon URL' : 'Image URL'}
-                </label>
-                <input
-                  type="text"
-                  value={card.imageSrc}
-                  onChange={e => updateCard(card.id, { imageSrc: e.target.value })}
-                  placeholder="/Portals/0/… or https://…"
-                  className={`${inputCls} font-mono mb-1.5`}
-                />
-                {type === 'logo' && (
-                  <p className="-mt-1 mb-1.5 text-[11px] text-gray-400">
-                    A square logo works best — transparent PNGs show the card surface color. Add Body/CTA text to reveal a panel on hover.
-                  </p>
+                {type === 'icon' || type === 'logo' ? (
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Icon source</label>
+                    <div className="flex gap-2 mb-1.5">
+                      <button
+                        type="button"
+                        onClick={() => updateCard(card.id, { iconMode: 'image' })}
+                        className={segBtn(card.iconMode !== 'fa')}
+                      >
+                        Image
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateCard(card.id, { iconMode: 'fa' })
+                          if (!card.iconClass) setIconPickerFor(card.id)
+                        }}
+                        className={segBtn(card.iconMode === 'fa')}
+                      >
+                        Font Awesome
+                      </button>
+                    </div>
+                    {card.iconMode === 'fa' ? (
+                      card.iconClass ? (
+                        <div className="flex items-center gap-2 mb-1.5 p-2 border border-gray-200 rounded-lg">
+                          <i className={`${card.iconClass} text-3xl text-gray-700 w-8 text-center`} aria-hidden="true" />
+                          <code className="flex-1 min-w-0 truncate text-[11px] text-gray-500">{card.iconClass}</code>
+                          <button
+                            type="button"
+                            onClick={() => setIconPickerFor(card.id)}
+                            className="px-2 py-1 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateCard(card.id, { iconClass: '' })}
+                            className="px-2 py-1 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIconPickerFor(card.id)}
+                          className="w-full mb-1.5 px-3 py-2 text-xs rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                        >
+                          ＋ Choose an icon
+                        </button>
+                      )
+                    ) : (
+                      <>
+                        <label className="block text-[11px] font-medium text-gray-600 mb-1">Icon URL</label>
+                        <input
+                          type="text"
+                          value={card.imageSrc}
+                          onChange={e => updateCard(card.id, { imageSrc: e.target.value })}
+                          placeholder="/Portals/0/… or https://…"
+                          className={`${inputCls} font-mono mb-1.5`}
+                        />
+                        {type === 'logo' && (
+                          <p className="-mt-1 mb-1.5 text-[11px] text-gray-400">
+                            A square logo works best — transparent PNGs show the card surface color. Add Body/CTA text to reveal a panel on hover.
+                          </p>
+                        )}
+                        <label className="block text-[11px] font-medium text-gray-600 mb-1">Image alt text</label>
+                        <input
+                          type="text"
+                          value={card.imageAlt}
+                          onChange={e => updateCard(card.id, { imageAlt: e.target.value })}
+                          placeholder="Describe the image"
+                          className={`${inputCls} mb-1.5`}
+                        />
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Image URL</label>
+                    <input
+                      type="text"
+                      value={card.imageSrc}
+                      onChange={e => updateCard(card.id, { imageSrc: e.target.value })}
+                      placeholder="/Portals/0/… or https://…"
+                      className={`${inputCls} font-mono mb-1.5`}
+                    />
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Image alt text</label>
+                    <input
+                      type="text"
+                      value={card.imageAlt}
+                      onChange={e => updateCard(card.id, { imageAlt: e.target.value })}
+                      placeholder="Describe the image"
+                      className={`${inputCls} mb-1.5`}
+                    />
+                  </>
                 )}
-                <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                  Image alt text
-                </label>
-                <input
-                  type="text"
-                  value={card.imageAlt}
-                  onChange={e => updateCard(card.id, { imageAlt: e.target.value })}
-                  placeholder="Describe the image"
-                  className={`${inputCls} mb-1.5`}
-                />
 
                 {showHeading && (
                   <>
@@ -1604,6 +1683,15 @@ export function CardsTool() {
       )}
 
       </div>{/* ── END editor row ── */}
+
+      <IconPicker
+        open={iconPickerFor !== null}
+        value={cards.find(c => c.id === iconPickerFor)?.iconClass ?? ''}
+        onPick={cls => {
+          if (iconPickerFor !== null) updateCard(iconPickerFor, { iconClass: cls, iconMode: 'fa' })
+        }}
+        onClose={() => setIconPickerFor(null)}
+      />
     </>
   )
 }

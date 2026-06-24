@@ -121,6 +121,17 @@ ${varsBlock(v)}
     object-position: center;
     background: var(--au-surface);
   }
+  .${inst}__icon--fa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    object-fit: unset;
+  }
+  .${inst}__icon--fa > i {
+    font-size: 44px;
+    line-height: 1;
+    color: var(--au-text);
+  }
   .${inst}__title {
     margin: 0 0 8px !important;
     padding: 0 24px !important;
@@ -430,6 +441,20 @@ ${varsBlock(v)}
   .${inst}__icon {
 ${iconSize}
     display: block;
+  }
+  .${inst}__icon--fa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .${inst}__icon--fa > i {
+    font-size: 88px;
+    line-height: 1;
+    color: var(--au-text);
   }
   .${inst}__box {
     position: absolute;

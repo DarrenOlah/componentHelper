@@ -19,15 +19,15 @@ import {
   DEFAULT_CARD_COLORS,
   type CardsSnapshot,
 } from './cards'
-import { safeImageSrc, IMAGE_PLACEHOLDER } from './sanitize'
+import { safeImageSrc, IMAGE_PLACEHOLDER, sanitizeIconClass } from './sanitize'
 
 const baseInput: GenerateCardsInput = {
   type: 'icon',
   cardsPerRow: 3,
   colors: { accent: '#FFCC33', accentText: '#000000', surface: '#000000', text: '#FFFFFF' },
   cards: [
-    { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: 'Visit A', buttonHref: 'https://example.com/a', external: false },
-    { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: 'Visit B', buttonHref: 'https://example.com/b', external: false },
+    { imageSrc: '/Portals/0/a.png', imageAlt: 'A', iconMode: 'image', iconClass: '', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: 'Visit A', buttonHref: 'https://example.com/a', external: false },
+    { imageSrc: '/Portals/0/b.png', imageAlt: 'B', iconMode: 'image', iconClass: '', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: 'Visit B', buttonHref: 'https://example.com/b', external: false },
   ],
 }
 
@@ -783,5 +783,120 @@ describe('snapshotsEqual', () => {
     const other = clone()
     other.cards = other.cards.slice(0, 1)
     expect(snapshotsEqual(base, other)).toBe(false)
+  })
+
+  it('is false when only the icon mode or icon class differs', () => {
+    const modeDiff = clone()
+    modeDiff.cards[0] = { ...modeDiff.cards[0], iconMode: 'fa' }
+    expect(snapshotsEqual(base, modeDiff)).toBe(false)
+    const classDiff = clone()
+    classDiff.cards[0] = { ...classDiff.cards[0], iconClass: 'fa-solid fa-house' }
+    expect(snapshotsEqual(base, classDiff)).toBe(false)
+  })
+})
+
+describe('sanitizeIconClass', () => {
+  it('keeps valid fa- tokens in order and joins with a space', () => {
+    expect(sanitizeIconClass('fa-solid fa-house')).toBe('fa-solid fa-house')
+    expect(sanitizeIconClass('fa-brands fa-x-twitter')).toBe('fa-brands fa-x-twitter')
+  })
+
+  it('rejects tokens without the fa- prefix', () => {
+    expect(sanitizeIconClass('house')).toBe('')
+    expect(sanitizeIconClass('solid house')).toBe('')
+    expect(sanitizeIconClass('fa-solid house')).toBe('fa-solid')
+  })
+
+  it('strips anything that could break out of the class attribute', () => {
+    // A token glued to junk with no space is rejected whole — nothing escapes the attr.
+    expect(sanitizeIconClass('fa-solid fa-house"><script>')).toBe('fa-solid')
+    // Space-separated junk is dropped while the valid tokens survive.
+    expect(sanitizeIconClass('fa-solid fa-house "><script>')).toBe('fa-solid fa-house')
+    expect(sanitizeIconClass('fa-house " onload=alert(1)')).toBe('fa-house')
+    expect(sanitizeIconClass('fa-house=x')).toBe('')
+  })
+
+  it('dedupes and caps the token count', () => {
+    expect(sanitizeIconClass('fa-solid fa-solid fa-house')).toBe('fa-solid fa-house')
+    expect(sanitizeIconClass('fa-a fa-b fa-c fa-d fa-e fa-f')).toBe('fa-a fa-b fa-c fa-d')
+  })
+
+  it('returns empty for junk or blank input', () => {
+    expect(sanitizeIconClass('')).toBe('')
+    expect(sanitizeIconClass('   ')).toBe('')
+    expect(sanitizeIconClass('<script>')).toBe('')
+  })
+})
+
+describe('font awesome icon cards', () => {
+  const faCard = (iconClass: string, iconMode: 'image' | 'fa' = 'fa') => ({
+    ...baseInput.cards[0],
+    iconMode,
+    iconClass,
+  })
+
+  it('icon card in fa mode emits a decorative <i> in a __icon span, not an <img>', () => {
+    const id = scopeId('icon', baseInput.colors)
+    const out = gen({ cards: [faCard('fa-solid fa-house')] })
+    expect(out).toContain(
+      `<span class="au-icon-card--${id}__icon au-icon-card--${id}__icon--fa"><i class="fa-solid fa-house" aria-hidden="true"></i></span>`,
+    )
+    expect(out).not.toContain(`<img class="au-icon-card--${id}__icon"`)
+  })
+
+  it('logo card in fa mode emits the <i> inside the __media layer', () => {
+    const id = scopeId('logo', baseInput.colors)
+    const out = gen({ type: 'logo', cards: [faCard('fa-brands fa-youtube')] })
+    expect(out).toContain(
+      `<div class="au-logo-card--${id}__media"><span class="au-logo-card--${id}__icon au-logo-card--${id}__icon--fa"><i class="fa-brands fa-youtube" aria-hidden="true"></i></span></div>`,
+    )
+    expect(out).not.toContain(`<img class="au-logo-card--${id}__icon"`)
+  })
+
+  it('image mode wins over a retained icon class (renders the <img>)', () => {
+    const id = scopeId('icon', baseInput.colors)
+    const out = gen({ cards: [faCard('fa-solid fa-house', 'image')] })
+    expect(out).toContain(`<img class="au-icon-card--${id}__icon"`)
+    expect(out).not.toContain('<i class="fa-')
+  })
+
+  it('sanitizes the icon class before it reaches the attribute', () => {
+    const out = gen({ cards: [faCard('fa-solid fa-house "><script>alert(1)</script>')] })
+    expect(out).toContain('<i class="fa-solid fa-house" aria-hidden="true">')
+    expect(out).not.toContain('<script>')
+  })
+
+  it('falls back to the image when fa mode has no valid class', () => {
+    const id = scopeId('icon', baseInput.colors)
+    const out = gen({ cards: [faCard('not-an-icon')] })
+    expect(out).toContain(`<img class="au-icon-card--${id}__icon"`)
+  })
+
+  it('copy output ships no Font Awesome CSS; the preview loads it', () => {
+    const out = gen({ cards: [faCard('fa-solid fa-house')] })
+    expect(out).not.toContain('@font-face')
+    expect(out).not.toContain('fontawesome')
+    const preview = generateCardsPreviewHtml({ ...baseInput, cards: [faCard('fa-solid fa-house')] })
+    expect(preview).toContain('fontawesome/css/all.min.css')
+  })
+})
+
+describe('coerceCardContent — icon fields (via coerceSnapshot)', () => {
+  it('defaults iconMode to image and iconClass to empty', () => {
+    const s = coerceSnapshot({ cards: [{ buttonHref: '/x' }] })!
+    expect(s.cards[0].iconMode).toBe('image')
+    expect(s.cards[0].iconClass).toBe('')
+  })
+
+  it('clamps a bad iconMode and sanitizes a junky iconClass', () => {
+    const s = coerceSnapshot({ cards: [{ iconMode: 'bogus', iconClass: 'fa-brands fa-x-twitter junk"><x' }] })!
+    expect(s.cards[0].iconMode).toBe('image')
+    expect(s.cards[0].iconClass).toBe('fa-brands fa-x-twitter')
+  })
+
+  it('keeps a valid fa mode and class', () => {
+    const s = coerceSnapshot({ cards: [{ iconMode: 'fa', iconClass: 'fa-solid fa-star' }] })!
+    expect(s.cards[0].iconMode).toBe('fa')
+    expect(s.cards[0].iconClass).toBe('fa-solid fa-star')
   })
 })

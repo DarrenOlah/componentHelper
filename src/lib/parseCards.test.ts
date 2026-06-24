@@ -17,8 +17,8 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       align: 'center',
       colors,
       cards: [
-        { imageSrc: '/Portals/0/a.png', imageAlt: 'A', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: '', buttonHref: 'https://example.com/a', external: true },
-        { imageSrc: '/Portals/0/b.png', imageAlt: 'B', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: '', buttonHref: 'https://example.com/b', external: false },
+        { imageSrc: '/Portals/0/a.png', imageAlt: 'A', iconMode: 'image', iconClass: '', heading: 'Alpha', body: 'Body A', buttonText: 'Go A', ctaText: '', buttonHref: 'https://example.com/a', external: true },
+        { imageSrc: '/Portals/0/b.png', imageAlt: 'B', iconMode: 'image', iconClass: '', heading: 'Beta', body: 'Body B', buttonText: 'Go B', ctaText: '', buttonHref: 'https://example.com/b', external: false },
       ],
     }
     const out = roundTrip(input)!
@@ -46,7 +46,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cardsPerRow: 2,
       align: 'left',
       colors,
-      cards: [{ imageSrc: '/x.png', imageAlt: 'X', heading: '', body: '', buttonText: 'Open', ctaText: '', buttonHref: '/go', external: false }],
+      cards: [{ imageSrc: '/x.png', imageAlt: 'X', iconMode: 'image', iconClass: '', heading: '', body: '', buttonText: 'Open', ctaText: '', buttonHref: '/go', external: false }],
     }
     const out = roundTrip(input)!
     expect(out.type).toBe('callout')
@@ -60,7 +60,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cardsPerRow: 3,
       align: 'left',
       colors,
-      cards: [{ imageSrc: '/y.png', imageAlt: 'Y', heading: '', body: 'Desc', buttonText: 'Band', ctaText: 'More', buttonHref: '/h', external: false }],
+      cards: [{ imageSrc: '/y.png', imageAlt: 'Y', iconMode: 'image', iconClass: '', heading: '', body: 'Desc', buttonText: 'Band', ctaText: 'More', buttonHref: '/h', external: false }],
     }
     const out = roundTrip(input)!
     expect(out.type).toBe('hover')
@@ -82,8 +82,8 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       align: 'left',
       colors,
       cards: [
-        { imageSrc: '/fb.png', imageAlt: 'Facebook', heading: '', body: '', buttonText: 'Facebook', ctaText: '', buttonHref: 'https://facebook.com', external: true },
-        { imageSrc: '/fl.png', imageAlt: 'Flickr', heading: '', body: 'All photos', buttonText: 'Flickr', ctaText: 'Follow Us', buttonHref: 'https://flickr.com', external: true },
+        { imageSrc: '/fb.png', imageAlt: 'Facebook', iconMode: 'image', iconClass: '', heading: '', body: '', buttonText: 'Facebook', ctaText: '', buttonHref: 'https://facebook.com', external: true },
+        { imageSrc: '/fl.png', imageAlt: 'Flickr', iconMode: 'image', iconClass: '', heading: '', body: 'All photos', buttonText: 'Flickr', ctaText: 'Follow Us', buttonHref: 'https://flickr.com', external: true },
       ],
     }
     const out = roundTrip(input)!
@@ -99,7 +99,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
   })
 
   it('logo cards: recovers the cover (fill & crop) icon fit', () => {
-    const card = { imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }
+    const card = { imageSrc: '/a.png', imageAlt: 'A', iconMode: 'image' as const, iconClass: '', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }
     const covered = roundTrip({ type: 'logo', cardsPerRow: 5, iconFit: 'cover', align: 'left', colors, cards: [card] })!
     expect(covered.iconFit).toBe('cover')
     const contained = roundTrip({ type: 'logo', cardsPerRow: 5, iconFit: 'contain', align: 'left', colors, cards: [card] })!
@@ -107,7 +107,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
   })
 
   it('logo cards: recovers the solid (opaque) reveal background', () => {
-    const card = { imageSrc: '/a.png', imageAlt: 'A', heading: '', body: 'Desc', buttonText: 'Go', ctaText: 'More', buttonHref: '/a', external: false }
+    const card = { imageSrc: '/a.png', imageAlt: 'A', iconMode: 'image' as const, iconClass: '', heading: '', body: 'Desc', buttonText: 'Go', ctaText: 'More', buttonHref: '/a', external: false }
     const solid = roundTrip({ type: 'logo', cardsPerRow: 5, revealBg: 'solid', align: 'left', colors, cards: [card] })!
     expect(solid.revealBg).toBe('solid')
     const gradient = roundTrip({ type: 'logo', cardsPerRow: 5, revealBg: 'gradient', align: 'left', colors, cards: [card] })!
@@ -120,7 +120,7 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cardsPerRow: 1,
       align: 'left',
       colors,
-      cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
+      cards: [{ imageSrc: '/a.png', imageAlt: 'A', iconMode: 'image', iconClass: '', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
     })!
     expect(oneUp.cardsPerRow).toBe(1)
 
@@ -129,13 +129,13 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
       cardsPerRow: 5,
       align: 'left',
       colors,
-      cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
+      cards: [{ imageSrc: '/a.png', imageAlt: 'A', iconMode: 'image', iconClass: '', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
     })!
     expect(fiveUp.cardsPerRow).toBe(5)
   })
 
   it('recovers the image shape (aspect ratio) for cover-photo cards', () => {
-    const card = { imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }
+    const card = { imageSrc: '/a.png', imageAlt: 'A', iconMode: 'image' as const, iconClass: '', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }
     const shaped = roundTrip({ type: 'callout', cardsPerRow: 1, imageAspect: '4:3', align: 'left', colors, cards: [card] })!
     expect(shaped.imageAspect).toBe('4:3')
     // the ultrawide cinematic preset round-trips too (21 / 9, integer pair)
@@ -153,7 +153,7 @@ describe('parseCardsHtml — best-effort degradation', () => {
     cardsPerRow: 3,
     align: 'left',
     colors: { accent: '#123456', accentText: '#ffffff', surface: '#222222', text: '#eeeeee' },
-    cards: [{ imageSrc: '/a.png', imageAlt: 'A', heading: 'H', body: 'B', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
+    cards: [{ imageSrc: '/a.png', imageAlt: 'A', iconMode: 'image', iconClass: '', heading: 'H', body: 'B', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
   }
 
   it('falls back to default colors when the <style> block is missing (markup-only paste)', () => {
@@ -175,5 +175,52 @@ describe('parseCardsHtml — best-effort degradation', () => {
     const blank: GenerateCardsInput = { ...input, cards: [{ ...input.cards[0], imageSrc: '' }] }
     const out = parseCardsHtml(generateCardsHtml(blank))!
     expect(out.cards[0].imageSrc).toBe('')
+  })
+})
+
+describe('parseCardsHtml — Font Awesome icons', () => {
+  it('round-trips an fa icon card (mode + class, empty image fields)', () => {
+    const input: GenerateCardsInput = {
+      type: 'icon',
+      cardsPerRow: 3,
+      align: 'left',
+      colors,
+      cards: [{ imageSrc: '', imageAlt: '', iconMode: 'fa', iconClass: 'fa-solid fa-house', heading: 'Home', body: 'Body', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }],
+    }
+    const out = roundTrip(input)!
+    expect(out.cards[0].iconMode).toBe('fa')
+    expect(out.cards[0].iconClass).toBe('fa-solid fa-house')
+    expect(out.cards[0].imageSrc).toBe('')
+    expect(out.cards[0].heading).toBe('Home')
+  })
+
+  it('round-trips an fa logo card', () => {
+    const input: GenerateCardsInput = {
+      type: 'logo',
+      cardsPerRow: 5,
+      align: 'left',
+      colors,
+      cards: [{ imageSrc: '', imageAlt: '', iconMode: 'fa', iconClass: 'fa-brands fa-youtube', heading: '', body: '', buttonText: 'YouTube', ctaText: '', buttonHref: 'https://youtube.com', external: true }],
+    }
+    const out = roundTrip(input)!
+    expect(out.cards[0].iconMode).toBe('fa')
+    expect(out.cards[0].iconClass).toBe('fa-brands fa-youtube')
+    expect(out.cards[0].buttonText).toBe('YouTube')
+  })
+
+  it('round-trips a mixed block (one fa card, one image card)', () => {
+    const input: GenerateCardsInput = {
+      type: 'icon',
+      cardsPerRow: 2,
+      align: 'left',
+      colors,
+      cards: [
+        { imageSrc: '', imageAlt: '', iconMode: 'fa', iconClass: 'fa-solid fa-star', heading: 'Star', body: '', buttonText: 'A', ctaText: '', buttonHref: '/a', external: false },
+        { imageSrc: '/Portals/0/b.png', imageAlt: 'B', iconMode: 'image', iconClass: '', heading: 'Beta', body: '', buttonText: 'B', ctaText: '', buttonHref: '/b', external: false },
+      ],
+    }
+    const out = roundTrip(input)!
+    expect(out.cards[0]).toMatchObject({ iconMode: 'fa', iconClass: 'fa-solid fa-star' })
+    expect(out.cards[1]).toMatchObject({ iconMode: 'image', imageSrc: '/Portals/0/b.png', imageAlt: 'B' })
   })
 })

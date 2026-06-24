@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
+    "gen:fa": "node scripts/genFaCatalog.mjs",
     "test": "vitest",
     "test:run": "vitest run",
     "postversion": "git push --follow-tags"
@@ -21,6 +22,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@fortawesome/fontawesome-free": "6.4.2",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.16",
