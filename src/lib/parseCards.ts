@@ -14,6 +14,8 @@ import {
   type CardColors,
   type CardContent,
   type CardImageAspect,
+  type CardIconFit,
+  type CardRevealBg,
   type GenerateCardsInput,
 } from './cards'
 import { IMAGE_PLACEHOLDER } from './sanitize'
@@ -43,7 +45,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   if (typeof DOMParser === 'undefined') return null
 
   // Type from any surviving `au-<type>-card` class (works even for partial/rendered paste).
-  const type = (html.match(/au-(icon|callout|hover)-card/) || [])[1] as CardType | undefined
+  const type = (html.match(/au-(icon|callout|hover|logo)-card/) || [])[1] as CardType | undefined
   if (!type) return null
 
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -91,6 +93,19 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   const ar = cssText.match(/aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/)
   const imageAspect: CardImageAspect = (ar && ASPECT_FROM_CSS[`${ar[1]} / ${ar[2]}`]) || 'auto'
 
+  // Logo icon fit from the __icon rule's object-fit (cover = fill/crop, else
+  // contain). Only meaningful for logo; other types don't read it. Markup-only
+  // pastes (no <style>) degrade to contain.
+  const iconFit: CardIconFit =
+    type === 'logo' && /__icon\s*\{[^}]*object-fit:\s*cover/.test(cssText) ? 'cover' : 'contain'
+
+  // Logo reveal-panel background from the __box rule: a surface-color fill is the
+  // opaque 'solid' option, anything else (the dark gradient) is 'gradient'. The
+  // `__box {` anchor excludes the `__box--reveal`/`__box:not(...)` selectors. Only
+  // meaningful for logo; markup-only pastes (no <style>) degrade to gradient.
+  const revealBg: CardRevealBg =
+    type === 'logo' && /__box\s*\{[^}]*background:\s*var\(--au-surface\)/.test(cssText) ? 'solid' : 'gradient'
+
   const txt = (el: Element | null) => (el?.textContent ?? '').trim()
   const attr = (el: Element | null, name: string) => el?.getAttribute(name) ?? ''
   const unplaceholder = (src: string) => (src === IMAGE_PLACEHOLDER ? '' : src)
@@ -126,7 +141,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       if (!a) continue
       Object.assign(card, readAnchor(a))
     } else {
-      // hover: the gold band (__title-link) is the single stretched link.
+      // hover/logo: the gold band (__title-link) is the single stretched link.
       const a = el.querySelector('[class*="__title-link"]')
       if (!a) continue
       Object.assign(card, readAnchor(a))
@@ -137,5 +152,5 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   }
   if (cards.length === 0) return null
 
-  return { type, cardsPerRow, imageAspect, align, colors, cards }
+  return { type, cardsPerRow, imageAspect, iconFit, revealBg, align, colors, cards }
 }

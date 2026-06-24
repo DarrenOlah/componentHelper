@@ -360,6 +360,167 @@ ${varsBlock(v)}
   }${reveal}`
 }
 
+// ---- Logo card: centered, contained icon/logo + optional hover reveal -------
+// Built for square / transparent-background logos and icons. Unlike the hover
+// card's full-bleed cover photo, the icon sits in a `__media` layer that reserves
+// the band's height (bottom: var(--au-band)) and centers the logo *above* the band
+// with object-fit: contain — so the band never overlaps it and transparent PNGs show
+// the surface color behind them. The slide-up reveal is reused from the hover card
+// but gated on a per-card `__box--reveal` class: a tile with body/CTA reveals on
+// hover/focus; a plain icon tile (no `--reveal`) stays static. `revealable` adds the
+// preview-only `--open` rules so the live preview can show the revealed state.
+export function logoCardCss(
+  inst: string,
+  v: CardCssVars,
+  opts: { revealable?: boolean; fit?: 'contain' | 'cover'; bg?: 'gradient' | 'solid' } = {},
+): string {
+  const reveal = opts.revealable
+    ? `
+  .${inst}--open .${inst}__box--reveal { top: 0; padding-top: 1rem; }
+  .${inst}--open .${inst}__box--reveal .${inst}__title {
+    background-color: transparent !important;
+    color: var(--au-text) !important;
+    text-shadow: 0 -2px 8px rgba(0, 0, 0, 0.6);
+  }`
+    : ''
+  // 'cover' fills the media box and crops to the tile's Image-shape (no padding —
+  // fill edge-to-edge); 'contain' shows the whole logo with breathing room. The
+  // media box already stops at the band (bottom: var(--au-band)) for both.
+  const cover = opts.fit === 'cover'
+  const mediaPad = cover ? '0' : '6%'
+  const iconSize = cover
+    ? `    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;`
+    : `    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;`
+  // 'solid' fills the slide-up panel with the surface color so the revealed text sits
+  // on an opaque background (icon hidden, maximum contrast); 'gradient' keeps the
+  // default dark overlay so the icon shows through behind the text.
+  const boxBg =
+    opts.bg === 'solid' ? 'var(--au-surface)' : 'linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6) 30%)'
+  return `.${inst} {
+${varsBlock(v)}
+    position: relative;
+    box-sizing: border-box;
+    min-height: 250px;
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--au-surface);
+    color: var(--au-text);
+  }
+  .${inst}:focus-within { outline: 3px solid var(--au-gold); outline-offset: -3px; }
+  .${inst}__media {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: var(--au-band);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: ${mediaPad};
+  }
+  .${inst}__icon {
+${iconSize}
+    display: block;
+  }
+  .${inst}__box {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    top: calc(100% - var(--au-band));
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    background: ${boxBg};
+    transition: top 0.5s ease-in-out, padding-top 0.5s ease-in-out !important;
+  }
+  .${inst}:hover .${inst}__box--reveal,
+  .${inst}:focus-within .${inst}__box--reveal { top: 0; padding-top: 1rem; }
+  .${inst}__title {
+    margin: 0 !important;
+    height: var(--au-band);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3%;
+    background: var(--au-gold) !important;
+    color: var(--au-ink) !important;
+    font-family: ${F530} !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+    text-transform: uppercase !important;
+    transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out !important;
+  }
+  .${inst}:hover .${inst}__box--reveal .${inst}__title,
+  .${inst}:focus-within .${inst}__box--reveal .${inst}__title {
+    background-color: transparent !important;
+    color: var(--au-text) !important;
+    text-shadow: 0 -2px 8px rgba(0, 0, 0, 0.6);
+  }
+  .${inst}:hover .${inst}__box:not(.${inst}__box--reveal) .${inst}__title,
+  .${inst}:focus-within .${inst}__box:not(.${inst}__box--reveal) .${inst}__title {
+    background-color: var(--au-gold-hover) !important;
+  }
+  .${inst}__title-link,
+  .${inst}__title-link:link,
+  .${inst}__title-link:visited,
+  .${inst}__title-link:hover,
+  .${inst}__title-link:focus,
+  .${inst}__title-link:active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+  .${inst}__title-link:focus { outline: none; }
+  .${inst}__title-link::after {
+    content: "";
+    position: absolute;
+    top: -1000px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+  }
+  .${inst}__desc {
+    display: block;
+    padding: 3%;
+    color: var(--au-text) !important;
+    font-family: ${F400} !important;
+    font-weight: 400 !important;
+    font-size: 16px !important;
+  }
+  .${inst}__cta {
+    display: inline-block;
+    align-self: center;
+    padding: 0 3%;
+    margin-top: 0.5em;
+    background: transparent !important;
+    color: var(--au-gold) !important;
+    font-family: ${F530} !important;
+    font-weight: 530 !important;
+    font-size: 18px !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .${inst}__box,
+    .${inst}__title { transition: none !important; }
+  }${reveal}`
+}
+
 // Minimal Bootstrap-4 grid subset for the PREVIEW iframe only (offline,
 // deterministic). The copy output ships no Bootstrap — the DNN theme provides it.
 // Breakpoints (576/768) match Bootstrap 4 so preview parity holds.

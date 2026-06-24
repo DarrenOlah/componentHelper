@@ -18,6 +18,8 @@ import {
   type CardAlign,
   type CardsPerRow,
   type CardImageAspect,
+  type CardIconFit,
+  type CardRevealBg,
   type PreviewContext,
   type GenerateCardsInput,
   type CardsSnapshot,
@@ -35,6 +37,8 @@ interface CardsState {
   type: CardType
   cardsPerRow: CardsPerRow
   imageAspect: CardImageAspect
+  iconFit: CardIconFit
+  revealBg: CardRevealBg
   align: CardAlign
   accent: string
   accentText: string
@@ -91,6 +95,8 @@ function defaultSettings() {
     type: 'icon' as CardType,
     cardsPerRow: 3 as CardsPerRow,
     imageAspect: 'auto' as CardImageAspect,
+    iconFit: 'contain' as CardIconFit,
+    revealBg: 'gradient' as CardRevealBg,
     align: 'left' as CardAlign,
     accent: DEFAULT_CARD_COLORS.accent,
     accentText: DEFAULT_CARD_COLORS.accentText,
@@ -118,6 +124,8 @@ function toSnapshot(state: CardsState): CardsSnapshot {
     type: state.type,
     cardsPerRow: state.cardsPerRow,
     imageAspect: state.imageAspect,
+    iconFit: state.iconFit,
+    revealBg: state.revealBg,
     align: state.align,
     accent: state.accent,
     accentText: state.accentText,
@@ -180,6 +188,7 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
   { id: 'icon', label: 'Icon', blurb: 'Overhanging square icon, heading, body, button.' },
   { id: 'callout', label: 'Callout', blurb: 'Full-cover image with a full-width button band.' },
   { id: 'hover', label: 'Hover', blurb: 'Image with a panel that slides up on hover/focus.' },
+  { id: 'logo', label: 'Logo', blurb: 'Centered icon/logo with a label band; optional hover reveal.' },
 ]
 
 const PER_ROW: CardsPerRow[] = [1, 2, 3, 4, 5]
@@ -194,6 +203,19 @@ const ASPECT_LABELS: Record<CardImageAspect, string> = {
   '16:9': '16:9 (Widescreen)',
   '21:9': '21:9 (Cinematic)',
 }
+
+// Logo-card icon fit: whole logo (contain) vs fill-and-crop to the tile (cover).
+const ICON_FIT_OPTS: { id: CardIconFit; label: string; blurb: string }[] = [
+  { id: 'contain', label: 'Whole logo', blurb: 'Show the entire icon (best for transparent logos).' },
+  { id: 'cover', label: 'Fill & crop', blurb: 'Fill the tile and crop overflow to the Image shape.' },
+]
+
+// Logo-card reveal-panel background: gradient overlay (icon shows through) vs an
+// opaque surface fill (icon hidden, text most readable).
+const REVEAL_BG_OPTS: { id: CardRevealBg; label: string; blurb: string }[] = [
+  { id: 'gradient', label: 'Gradient', blurb: 'Dark overlay — the icon stays visible behind the text.' },
+  { id: 'solid', label: 'Solid', blurb: 'Opaque surface color — hides the icon for the clearest text.' },
+]
 
 const ALIGNS: { id: CardAlign; label: string }[] = [
   { id: 'left', label: 'Left' },
@@ -320,7 +342,7 @@ export function CardsTool() {
   // One at a time — editing another field's URL just moves the receipt.
   const [stripped, setStripped] = useState<{ cardId: number; original: string; origin: string } | null>(null)
 
-  const { type, cardsPerRow, imageAspect, align, accent, accentText, surface, text, cards } = state
+  const { type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards } = state
 
   const showHeading = type === 'icon' // hover's gold band is button text, not a heading
   const showBody = type !== 'callout' // icon __text + hover __desc
@@ -336,6 +358,8 @@ export function CardsTool() {
     type === d.type &&
     cardsPerRow === d.cardsPerRow &&
     imageAspect === d.imageAspect &&
+    iconFit === d.iconFit &&
+    revealBg === d.revealBg &&
     align === d.align &&
     eqHex(accent, d.accent) &&
     eqHex(accentText, d.accentText) &&
@@ -347,6 +371,8 @@ export function CardsTool() {
       type,
       cardsPerRow,
       imageAspect,
+      iconFit,
+      revealBg,
       align,
       colors: { accent, accentText, surface, text },
       cards: cards.map(({ imageSrc, imageAlt, heading, body, buttonText, ctaText, buttonHref, external }) => ({
@@ -360,7 +386,7 @@ export function CardsTool() {
         external,
       })),
     }),
-    [type, cardsPerRow, imageAspect, align, accent, accentText, surface, text, cards],
+    [type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards],
   )
 
   const previewHtml = useMemo(
@@ -638,6 +664,8 @@ export function CardsTool() {
       type: parsed.type,
       cardsPerRow: parsed.cardsPerRow,
       imageAspect: parsed.imageAspect ?? 'auto',
+      iconFit: parsed.iconFit ?? 'contain',
+      revealBg: parsed.revealBg ?? 'gradient',
       align: parsed.align ?? 'left',
       accent: parsed.colors.accent,
       accentText: parsed.colors.accentText,
@@ -818,7 +846,7 @@ export function CardsTool() {
             Affects only lines that aren’t full (too few cards, or the last wrapped row). Full rows look the same either way.
           </p>
 
-          {(type === 'callout' || type === 'hover') && (
+          {(type === 'callout' || type === 'hover' || type === 'logo') && (
             <>
               <label className="block text-xs font-medium text-gray-700 mb-1 mt-4">Image shape</label>
               <select
@@ -833,7 +861,42 @@ export function CardsTool() {
                 ))}
               </select>
               <p className="mt-2 text-xs text-gray-400">
+                {type === 'logo' && 'Tip: Square (1:1) suits logos and icons.'}
               </p>
+            </>
+          )}
+
+          {type === 'logo' && (
+            <>
+              <label className="block text-xs font-medium text-gray-700 mb-1 mt-4">Icon fit</label>
+              <div className="flex gap-2">
+                {ICON_FIT_OPTS.map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setState(s => ({ ...s, iconFit: f.id }))}
+                    className={segBtn(iconFit === f.id)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-400">{ICON_FIT_OPTS.find(f => f.id === iconFit)?.blurb}</p>
+
+              <label className="block text-xs font-medium text-gray-700 mb-1 mt-4">Reveal background</label>
+              <div className="flex gap-2">
+                {REVEAL_BG_OPTS.map(b => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setState(s => ({ ...s, revealBg: b.id }))}
+                    className={segBtn(revealBg === b.id)}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-gray-400">{REVEAL_BG_OPTS.find(b => b.id === revealBg)?.blurb}</p>
             </>
           )}
         </div>
@@ -897,7 +960,7 @@ export function CardsTool() {
                 </div>
 
                 <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                  {type === 'icon' ? 'Icon URL' : 'Image URL'}
+                  {type === 'icon' || type === 'logo' ? 'Icon URL' : 'Image URL'}
                 </label>
                 <input
                   type="text"
@@ -906,6 +969,11 @@ export function CardsTool() {
                   placeholder="/Portals/0/… or https://…"
                   className={`${inputCls} font-mono mb-1.5`}
                 />
+                {type === 'logo' && (
+                  <p className="-mt-1 mb-1.5 text-[11px] text-gray-400">
+                    A square logo works best — transparent PNGs show the card surface color. Add Body/CTA text to reveal a panel on hover.
+                  </p>
+                )}
                 <label className="block text-[11px] font-medium text-gray-600 mb-1">
                   Image alt text
                 </label>
@@ -956,7 +1024,7 @@ export function CardsTool() {
                   placeholder="Button text *"
                   className={`${inputCls} mb-1.5`}
                 />
-                {type === 'hover' && (
+                {(type === 'hover' || type === 'logo') && (
                   <>
                     <label className="block text-[11px] font-medium text-gray-600 mb-1">
                       CTA text (optional)
@@ -1066,7 +1134,7 @@ export function CardsTool() {
         <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
           <div className="bg-gray-100 px-3 py-1.5 border-b border-gray-200 flex items-center gap-3 flex-wrap">
             <span className="text-xs text-gray-500 font-medium">Live preview</span>
-            {type === 'hover' && (
+            {(type === 'hover' || type === 'logo') && (
               <label className="flex items-center gap-1.5 text-[11px] text-gray-600">
                 <input type="checkbox" checked={revealHover} onChange={e => setRevealHover(e.target.checked)} />
                 Show revealed state

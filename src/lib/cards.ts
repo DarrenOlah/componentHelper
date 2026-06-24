@@ -9,13 +9,14 @@ import {
   iconCardCss,
   calloutCardCss,
   hoverCardCss,
+  logoCardCss,
   cardGridCss,
   PREVIEW_BOOTSTRAP_GRID_CSS,
   PREVIEW_SIM_CSS,
   type CardCssVars,
 } from '../templates/cardsCss'
 
-export type CardType = 'icon' | 'callout' | 'hover'
+export type CardType = 'icon' | 'callout' | 'hover' | 'logo'
 
 // One card's editable content. Each markup builder reads only the fields its type
 // uses (callout ignores heading/body; only hover/icon use them).
@@ -71,11 +72,30 @@ const ASPECT_CSS: Record<CardImageAspect, string> = {
   '21:9': '21 / 9',
 }
 
+// How the logo card's icon fills its tile. 'contain' shows the whole logo (with
+// padding, on the surface color — best for transparent/varied logos); 'cover' fills
+// and crops to the tile's Image-shape box (best for square art / photos). Only the
+// logo card reads it; the other types ignore it.
+export const ICON_FITS = ['contain', 'cover'] as const
+export type CardIconFit = (typeof ICON_FITS)[number]
+
+// The background of the logo card's slide-up reveal panel. 'gradient' is the
+// default dark-to-transparent overlay (the icon shows through behind the text);
+// 'solid' fills the panel with the surface color (hides the icon, maximizing text
+// contrast — best when an icon would make the revealed text hard to read). Only the
+// logo card reads it; the other types ignore it.
+export const REVEAL_FILLS = ['gradient', 'solid'] as const
+export type CardRevealBg = (typeof REVEAL_FILLS)[number]
+
 export interface GenerateCardsInput {
   type: CardType
   cardsPerRow: CardsPerRow
   // Defaults to 'auto' when omitted.
   imageAspect?: CardImageAspect
+  // Defaults to 'contain' when omitted. Only the logo card reads it.
+  iconFit?: CardIconFit
+  // Defaults to 'gradient' when omitted. Only the logo card reads it.
+  revealBg?: CardRevealBg
   colors: CardColors
   cards: CardContent[]
   align?: CardAlign // defaults to 'left'
@@ -254,15 +274,40 @@ function hoverCardMarkup(inst: string, card: CardContent): string {
   ].join('\n')
 }
 
-const CSS_BUILDERS: Record<CardType, (inst: string, v: CardCssVars, opts?: { revealable?: boolean }) => string> = {
+function logoCardMarkup(inst: string, card: CardContent): string {
+  const { src, alt, href, body, label, linkAttrs } = commonFields(card)
+  // The icon sits in a __media layer that reserves the band's height (CSS), so it
+  // centers above the band. The gold band (__title-link) is the required stretched
+  // link. A tile reveals on hover only when it has body or CTA content: the markup
+  // tags the box with __box--reveal so the (shared) slide rules apply to it alone —
+  // a plain icon tile keeps a static band.
+  const cta = card.ctaText.trim()
+  const revealable = !!(body || cta)
+  const boxCls = revealable ? `${inst}__box ${inst}__box--reveal` : `${inst}__box`
+  return [
+    `          <div class="${inst}__media"><img class="${inst}__icon" src="${src}" alt="${alt}" /></div>`,
+    `          <div class="${boxCls}">`,
+    `            <h3 class="${inst}__title"><a class="${inst}__title-link" href="${href}"${linkAttrs}>${label}</a></h3>`,
+    ...(body ? [`            <span class="${inst}__desc">${escapeHtmlText(body)}</span>`] : []),
+    ...(cta ? [`            <span class="${inst}__cta">${escapeHtmlText(cta)}</span>`] : []),
+    `          </div>`,
+  ].join('\n')
+}
+
+const CSS_BUILDERS: Record<
+  CardType,
+  (inst: string, v: CardCssVars, opts?: { revealable?: boolean; fit?: CardIconFit; bg?: CardRevealBg }) => string
+> = {
   icon: iconCardCss,
   callout: calloutCardCss,
   hover: hoverCardCss,
+  logo: logoCardCss,
 }
 const MARKUP: Record<CardType, (inst: string, card: CardContent) => string> = {
   icon: iconCardMarkup,
   callout: calloutCardMarkup,
   hover: hoverCardMarkup,
+  logo: logoCardMarkup,
 }
 
 // Full <style> + Bootstrap-grid markup to paste into a DNN Text/HTML module.
@@ -279,12 +324,12 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   // min-height stays a small-width floor. Never emitted for icon cards or 'auto'.
   const ar = input.type !== 'icon' ? ASPECT_CSS[input.imageAspect ?? 'auto'] : ''
   const aspectRule = ar ? `\n  .${inst} { aspect-ratio: ${ar}; }` : ''
-  const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover })}
+  const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover, fit: input.iconFit ?? 'contain', bg: input.revealBg ?? 'gradient' })}
   ${cardGridCss(gridClass, input.cardsPerRow)}${aspectRule}`
   const cols = columnClass(input.cardsPerRow)
   const rowClass = input.align === 'center' ? 'row justify-content-center' : 'row'
-  // Preview-only open state for the hover card (never on the copy path).
-  const openClass = opts.revealHover && input.type === 'hover' ? ` ${inst}--open` : ''
+  // Preview-only open state for the reveal cards (hover/logo) (never on the copy path).
+  const openClass = opts.revealHover && (input.type === 'hover' || input.type === 'logo') ? ` ${inst}--open` : ''
 
   const cards = input.cards
     .map(
@@ -355,6 +400,8 @@ export interface CardsSnapshot {
   type: CardType
   cardsPerRow: CardsPerRow
   imageAspect: CardImageAspect
+  iconFit: CardIconFit
+  revealBg: CardRevealBg
   align: CardAlign
   accent: string
   accentText: string
@@ -363,7 +410,7 @@ export interface CardsSnapshot {
   cards: CardContent[]
 }
 
-const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover']
+const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover', 'logo']
 const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center']
 const PREVIEW_CONTEXTS: readonly PreviewContext[] = ['none', 'left', 'both']
 const PER_ROW_VALUES: readonly CardsPerRow[] = [1, 2, 3, 4, 5]
@@ -404,6 +451,8 @@ export function coerceSnapshot(raw: unknown): CardsSnapshot | null {
     type: oneOf(raw.type, CARD_TYPES, 'icon'),
     cardsPerRow: oneOf(raw.cardsPerRow, PER_ROW_VALUES, 3),
     imageAspect: oneOf(raw.imageAspect, IMAGE_ASPECTS, 'auto'),
+    iconFit: oneOf(raw.iconFit, ICON_FITS, 'contain'),
+    revealBg: oneOf(raw.revealBg, REVEAL_FILLS, 'gradient'),
     align: oneOf(raw.align, CARD_ALIGNS, 'left'),
     accent: str(raw.accent, DEFAULT_CARD_COLORS.accent),
     accentText: str(raw.accentText, DEFAULT_CARD_COLORS.accentText),
@@ -482,6 +531,8 @@ export function snapshotToGenInput(snap: CardsSnapshot): GenerateCardsInput {
     type: snap.type,
     cardsPerRow: snap.cardsPerRow,
     imageAspect: snap.imageAspect,
+    iconFit: snap.iconFit,
+    revealBg: snap.revealBg,
     align: snap.align,
     colors: { accent: snap.accent, accentText: snap.accentText, surface: snap.surface, text: snap.text },
     cards: snap.cards.map(c => ({ ...c })),
@@ -495,6 +546,8 @@ export function snapshotsEqual(a: CardsSnapshot, b: CardsSnapshot): boolean {
     a.type !== b.type ||
     a.cardsPerRow !== b.cardsPerRow ||
     a.imageAspect !== b.imageAspect ||
+    a.iconFit !== b.iconFit ||
+    a.revealBg !== b.revealBg ||
     a.align !== b.align ||
     a.accent !== b.accent ||
     a.accentText !== b.accentText ||

@@ -74,6 +74,46 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
     })
   })
 
+  it('logo cards: icon + band link + desc + cta (routes like hover)', () => {
+    const input: GenerateCardsInput = {
+      type: 'logo',
+      cardsPerRow: 5,
+      imageAspect: '1:1',
+      align: 'left',
+      colors,
+      cards: [
+        { imageSrc: '/fb.png', imageAlt: 'Facebook', heading: '', body: '', buttonText: 'Facebook', ctaText: '', buttonHref: 'https://facebook.com', external: true },
+        { imageSrc: '/fl.png', imageAlt: 'Flickr', heading: '', body: 'All photos', buttonText: 'Flickr', ctaText: 'Follow Us', buttonHref: 'https://flickr.com', external: true },
+      ],
+    }
+    const out = roundTrip(input)!
+    expect(out.type).toBe('logo')
+    expect(out.cardsPerRow).toBe(5)
+    expect(out.imageAspect).toBe('1:1')
+    // static icon tile: label + href recovered, no reveal content
+    expect(out.cards[0]).toMatchObject({ imageSrc: '/fb.png', imageAlt: 'Facebook', buttonText: 'Facebook', body: '', ctaText: '' })
+    // reveal tile: desc + cta recovered
+    expect(out.cards[1]).toMatchObject({ imageSrc: '/fl.png', body: 'All photos', buttonText: 'Flickr', ctaText: 'Follow Us' })
+    // default icon fit is contain
+    expect(out.iconFit).toBe('contain')
+  })
+
+  it('logo cards: recovers the cover (fill & crop) icon fit', () => {
+    const card = { imageSrc: '/a.png', imageAlt: 'A', heading: '', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/a', external: false }
+    const covered = roundTrip({ type: 'logo', cardsPerRow: 5, iconFit: 'cover', align: 'left', colors, cards: [card] })!
+    expect(covered.iconFit).toBe('cover')
+    const contained = roundTrip({ type: 'logo', cardsPerRow: 5, iconFit: 'contain', align: 'left', colors, cards: [card] })!
+    expect(contained.iconFit).toBe('contain')
+  })
+
+  it('logo cards: recovers the solid (opaque) reveal background', () => {
+    const card = { imageSrc: '/a.png', imageAlt: 'A', heading: '', body: 'Desc', buttonText: 'Go', ctaText: 'More', buttonHref: '/a', external: false }
+    const solid = roundTrip({ type: 'logo', cardsPerRow: 5, revealBg: 'solid', align: 'left', colors, cards: [card] })!
+    expect(solid.revealBg).toBe('solid')
+    const gradient = roundTrip({ type: 'logo', cardsPerRow: 5, revealBg: 'gradient', align: 'left', colors, cards: [card] })!
+    expect(gradient.revealBg).toBe('gradient')
+  })
+
   it('recovers 1-up (col-12 only) and 5-up (au-col-5 hook) layouts', () => {
     const oneUp = roundTrip({
       type: 'icon',

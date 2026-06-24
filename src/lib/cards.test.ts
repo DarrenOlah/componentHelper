@@ -366,11 +366,107 @@ describe('per-type structure', () => {
   })
 })
 
+describe('logo card', () => {
+  it('centers a contained icon in a media layer that reserves the band height', () => {
+    const id = scopeId('logo', baseInput.colors)
+    const out = gen({ type: 'logo' })
+    expect(out).toContain(`<div class="au-logo-card--${id}__media"><img class="au-logo-card--${id}__icon"`)
+    // the icon shows whole (contain), never cropped (cover), on the surface color
+    expect(out).toContain('object-fit: contain;')
+    expect(out).not.toContain('object-fit: cover;')
+    // the media layer stops at the band, so the icon centers above it (not under it)
+    expect(out).toContain('bottom: var(--au-band);')
+  })
+
+  it('uses the gold band as the single stretched link (shared with hover)', () => {
+    const id = scopeId('logo', baseInput.colors)
+    const out = gen({ type: 'logo' })
+    expect(out).toContain(
+      `<h3 class="au-logo-card--${id}__title"><a class="au-logo-card--${id}__title-link" href="https://example.com/a">Go A</a></h3>`,
+    )
+    expect(out).toContain(`.au-logo-card--${id}__title-link::after`)
+  })
+
+  it('tags only content-bearing tiles with __box--reveal (static otherwise)', () => {
+    const id = scopeId('logo', baseInput.colors)
+    // a tile with body/CTA reveals on hover → __box--reveal
+    const reveal = gen({ type: 'logo', cards: [{ ...baseInput.cards[0] }] })
+    expect(reveal).toContain(`<div class="au-logo-card--${id}__box au-logo-card--${id}__box--reveal">`)
+    expect(reveal).toContain(`<span class="au-logo-card--${id}__desc">Body A</span>`)
+    expect(reveal).toContain(`<span class="au-logo-card--${id}__cta">Visit A</span>`)
+    // the slide rule is scoped to the reveal modifier, so plain tiles stay static
+    expect(reveal).toContain(`.au-logo-card--${id}:hover .au-logo-card--${id}__box--reveal`)
+
+    // an icon-only tile (no body/CTA) keeps a plain, non-sliding box
+    const staticTile = gen({
+      type: 'logo',
+      cards: [{ ...baseInput.cards[0], body: '   ', ctaText: '   ' }],
+    })
+    expect(staticTile).toContain(`<div class="au-logo-card--${id}__box">`)
+    expect(staticTile).not.toContain(`au-logo-card--${id}__box--reveal">`)
+    expect(staticTile).not.toContain(`class="au-logo-card--${id}__desc"`)
+    expect(staticTile).not.toContain(`class="au-logo-card--${id}__cta"`)
+  })
+
+  it('gives static (non-reveal) tiles a gold-hover band; reveal tiles still fade', () => {
+    const id = scopeId('logo', baseInput.colors)
+    const out = gen({ type: 'logo' })
+    // static band darkens to the button hover shade on hover/focus...
+    expect(out).toContain(
+      `.au-logo-card--${id}:hover .au-logo-card--${id}__box:not(.au-logo-card--${id}__box--reveal) .au-logo-card--${id}__title`,
+    )
+    expect(out).toContain('background-color: var(--au-gold-hover) !important;')
+    // ...without disturbing the reveal tiles' fade-to-transparent band rule
+    expect(out).toContain(
+      `.au-logo-card--${id}:hover .au-logo-card--${id}__box--reveal .au-logo-card--${id}__title`,
+    )
+  })
+
+  it('supports the Image shape aspect-ratio rule (like callout/hover)', () => {
+    const id = scopeId('logo', baseInput.colors)
+    expect(gen({ type: 'logo', imageAspect: '1:1' })).toContain(`.au-logo-card--${id} { aspect-ratio: 1 / 1; }`)
+  })
+
+  it('iconFit "contain" (default) shows the whole logo with padding', () => {
+    const out = gen({ type: 'logo' }) // default fit
+    expect(out).toContain('object-fit: contain;')
+    expect(out).not.toContain('object-fit: cover;')
+    expect(out).toContain('padding: 6%;')
+  })
+
+  it('iconFit "cover" fills and crops to the tile (no padding)', () => {
+    const out = gen({ type: 'logo', iconFit: 'cover' })
+    expect(out).toContain('object-fit: cover;')
+    expect(out).not.toContain('object-fit: contain;')
+    expect(out).toContain('padding: 0;')
+  })
+
+  it('revealBg "gradient" (default) keeps the dark overlay panel', () => {
+    const out = gen({ type: 'logo' }) // default reveal background
+    expect(out).toContain('linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6) 30%)')
+    // the box background must not be the opaque surface fill
+    expect(out).not.toMatch(/__box \{[^}]*background: var\(--au-surface\)/)
+  })
+
+  it('revealBg "solid" fills the reveal panel with the opaque surface color', () => {
+    const out = gen({ type: 'logo', revealBg: 'solid' })
+    // the __box background is the surface fill, not the gradient
+    expect(out).toMatch(/__box \{[^}]*background: var\(--au-surface\)/)
+    expect(out).not.toContain('linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.6) 30%)')
+  })
+})
+
 describe('revealHover (preview only)', () => {
   it('preview reveals the hover card; copy never does', () => {
     const preview = generateCardsPreviewHtml({ ...baseInput, type: 'hover' }, { revealHover: true })
     expect(preview).toContain('--open')
     expect(generateCardsHtml({ ...baseInput, type: 'hover' })).not.toContain('--open')
+  })
+
+  it('preview reveals the logo card; copy never does', () => {
+    const preview = generateCardsPreviewHtml({ ...baseInput, type: 'logo' }, { revealHover: true })
+    expect(preview).toContain('--open')
+    expect(generateCardsHtml({ ...baseInput, type: 'logo' })).not.toContain('--open')
   })
 })
 
@@ -445,6 +541,7 @@ describe('coerceSnapshot', () => {
     type: 'hover',
     cardsPerRow: 4,
     imageAspect: '4:3',
+    iconFit: 'contain',
     align: 'center',
     accent: '#123456',
     accentText: '#ffffff',
@@ -471,10 +568,12 @@ describe('coerceSnapshot', () => {
   })
 
   it('clamps bad enum values to defaults', () => {
-    const s = coerceSnapshot({ ...goodSnap, type: 'bogus', cardsPerRow: 7, imageAspect: 'banana', align: 'sideways' })!
+    const s = coerceSnapshot({ ...goodSnap, type: 'bogus', cardsPerRow: 7, imageAspect: 'banana', iconFit: 'squish', revealBg: 'rainbow', align: 'sideways' })!
     expect(s.type).toBe('icon')
     expect(s.cardsPerRow).toBe(3)
     expect(s.imageAspect).toBe('auto')
+    expect(s.iconFit).toBe('contain')
+    expect(s.revealBg).toBe('gradient')
     expect(s.align).toBe('left')
   })
 
@@ -612,6 +711,8 @@ describe('snapshotToGenInput', () => {
     type: 'hover',
     cardsPerRow: 4,
     imageAspect: '4:3',
+    iconFit: 'contain',
+    revealBg: 'gradient',
     align: 'center',
     accent: '#123456',
     accentText: '#ffffff',
@@ -625,6 +726,7 @@ describe('snapshotToGenInput', () => {
     expect(gi.type).toBe('hover')
     expect(gi.cardsPerRow).toBe(4)
     expect(gi.imageAspect).toBe('4:3')
+    expect(gi.iconFit).toBe('contain')
     expect(gi.align).toBe('center')
     expect(gi.colors).toEqual({ accent: '#123456', accentText: '#ffffff', surface: '#000000', text: '#eeeeee' })
     expect(gi.cards).toHaveLength(1)
@@ -641,6 +743,8 @@ describe('snapshotsEqual', () => {
     type: 'icon',
     cardsPerRow: 3,
     imageAspect: 'auto',
+    iconFit: 'contain',
+    revealBg: 'gradient',
     align: 'left',
     accent: '#FFCC33',
     accentText: '#000000',
@@ -658,6 +762,8 @@ describe('snapshotsEqual', () => {
     expect(snapshotsEqual(base, { ...clone(), align: 'center' })).toBe(false)
     expect(snapshotsEqual(base, { ...clone(), cardsPerRow: 4 })).toBe(false)
     expect(snapshotsEqual(base, { ...clone(), imageAspect: '3:2' })).toBe(false)
+    expect(snapshotsEqual(base, { ...clone(), iconFit: 'cover' })).toBe(false)
+    expect(snapshotsEqual(base, { ...clone(), revealBg: 'solid' })).toBe(false)
     expect(snapshotsEqual(base, { ...clone(), accent: '#000000' })).toBe(false)
   })
 
