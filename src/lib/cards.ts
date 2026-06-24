@@ -55,8 +55,10 @@ export interface CardColors {
 
 // Row alignment when a line isn't full (too few cards, or the last wrapped line).
 // 'left' is Bootstrap's default; 'center' adds .justify-content-center so an
-// under-filled line is centered instead of flush-left. Full lines are unaffected.
-export type CardAlign = 'left' | 'center'
+// under-filled line is centered instead of flush-left; 'stretch' grows the cards on
+// an under-filled line (via flex-grow in cardGridCss) so they fill the full width.
+// Full lines are unaffected in every mode.
+export type CardAlign = 'left' | 'center' | 'stretch'
 
 // Cards per row at the widest (desktop) breakpoint. 1-up is a single column at
 // every width; 5-up graduates 1 → 2 → 5 like 3-up/4-up do.
@@ -201,14 +203,28 @@ function resolveColors(c: CardColors): CardCssVars {
   }
 }
 
-// ---- Scope id: keeps differently-colored blocks from colliding ------------
-// Pure FNV-1a (32-bit) → base36 over the *sanitized* type + colors. Identical
-// look → same id (two pasted blocks dedupe); any color/type change → different id
-// (full isolation). Independent of card *content* — only the look is hashed.
-export function scopeId(type: CardType, colors: CardColors): string {
+// The layout fields that feed scopeId — every input that changes the emitted CSS.
+export interface ScopeLayout {
+  cardsPerRow?: CardsPerRow
+  imageAspect?: CardImageAspect
+  iconFit?: CardIconFit
+  revealBg?: CardRevealBg
+  align?: CardAlign
+}
+
+// ---- Scope id: keeps blocks with different generated CSS from colliding ----
+// Pure FNV-1a (32-bit) → base36 over the *sanitized* type + colors + every layout
+// field that changes the emitted <style> (cardsPerRow, aspect, logo fit/bg, and the
+// stretch row mode). Identical look AND layout → same id (two pasted blocks dedupe);
+// any difference that alters the CSS → different id, so two blocks on one page can't
+// clobber each other's scoped rules. Independent of card *content* (text/images).
+// align left vs center is excluded: it only swaps a markup row class, not the CSS.
+export function scopeId(type: CardType, colors: CardColors, layout?: ScopeLayout): string {
   const v = resolveColors(colors)
   // accentHover is derived from accent, so it's redundant in the key.
-  const key = `${type}|${v.accent}|${v.accentText}|${v.surface}|${v.text}`.toLowerCase()
+  const l = layout ?? {}
+  const layoutKey = `${l.cardsPerRow ?? 3}|${l.imageAspect ?? 'auto'}|${l.iconFit ?? 'contain'}|${l.revealBg ?? 'gradient'}|${l.align === 'stretch' ? 's' : ''}`
+  const key = `${type}|${v.accent}|${v.accentText}|${v.surface}|${v.text}|${layoutKey}`.toLowerCase()
   let h = 0x811c9dc5
   for (let i = 0; i < key.length; i++) {
     h ^= key.charCodeAt(i)
@@ -340,7 +356,15 @@ const MARKUP: Record<CardType, (inst: string, card: CardContent) => string> = {
 // Full <style> + Bootstrap-grid markup to paste into a DNN Text/HTML module.
 export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions = {}): string {
   const v = resolveColors(input.colors)
-  const id = input.instanceId ?? scopeId(input.type, input.colors)
+  const id =
+    input.instanceId ??
+    scopeId(input.type, input.colors, {
+      cardsPerRow: input.cardsPerRow,
+      imageAspect: input.imageAspect,
+      iconFit: input.iconFit,
+      revealBg: input.revealBg,
+      align: input.align,
+    })
   const base = `au-${input.type}-card`
   const inst = `${base}--${id}`
   // Grid wrapper class scopes the flush, gap-based layout override to this block's
@@ -352,8 +376,10 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   const ar = input.type !== 'icon' ? ASPECT_CSS[input.imageAspect ?? 'auto'] : ''
   const aspectRule = ar ? `\n  .${inst} { aspect-ratio: ${ar}; }` : ''
   const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover, fit: input.iconFit ?? 'contain', bg: input.revealBg ?? 'gradient' })}
-  ${cardGridCss(gridClass, input.cardsPerRow)}${aspectRule}`
+  ${cardGridCss(gridClass, input.cardsPerRow, input.align === 'stretch')}${aspectRule}`
   const cols = columnClass(input.cardsPerRow)
+  // center adds .justify-content-center; left and stretch both use a plain row (stretch
+  // fills the last line via flex-grow in cardGridCss, not a row-class change).
   const rowClass = input.align === 'center' ? 'row justify-content-center' : 'row'
   // Preview-only open state for the reveal cards (hover/logo) (never on the copy path).
   const openClass = opts.revealHover && (input.type === 'hover' || input.type === 'logo') ? ` ${inst}--open` : ''
@@ -439,7 +465,7 @@ export interface CardsSnapshot {
 }
 
 const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover', 'logo']
-const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center']
+const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center', 'stretch']
 const PREVIEW_CONTEXTS: readonly PreviewContext[] = ['none', 'left', 'both']
 const PER_ROW_VALUES: readonly CardsPerRow[] = [1, 2, 3, 4, 5]
 

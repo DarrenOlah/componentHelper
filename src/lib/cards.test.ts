@@ -216,6 +216,20 @@ describe('scopeId — determinism & isolation', () => {
   it('honors an instanceId override', () => {
     expect(gen({ instanceId: 'fixed1' })).toContain('.au-icon-card--fixed1 {')
   })
+
+  it('does not collide when same-colored blocks differ only in layout', () => {
+    // Regression: two callouts with identical colors but different cards-per-row used
+    // to share a scope id, so the second block's <style> clobbered the first on one
+    // page. They must now get distinct ids (and thus distinct grid selectors).
+    const idThree = scopeId('icon', baseInput.colors, { cardsPerRow: 3 })
+    const idTwo = scopeId('icon', baseInput.colors, { cardsPerRow: 2 })
+    expect(idThree).not.toBe(idTwo)
+    expect(gen({ cardsPerRow: 3 })).not.toContain(`au-icon-card--${idTwo}`)
+    expect(gen({ cardsPerRow: 2 })).not.toContain(`au-icon-card--${idThree}`)
+    // aspect / fit / bg / stretch are folded in too, so they can't clobber either.
+    expect(scopeId('icon', baseInput.colors, { imageAspect: '16:9' })).not.toBe(idThree)
+    expect(scopeId('icon', baseInput.colors, { align: 'stretch' })).not.toBe(idThree)
+  })
 })
 
 describe('columnClass + layout', () => {
@@ -266,23 +280,44 @@ describe('inter-card gap (uniform 15px, flush with text edges)', () => {
   })
 
   it('sizes the desktop columns for the chosen cards-per-row', () => {
-    const id = scopeId('icon', baseInput.colors) // scopeId ignores cardsPerRow
+    // scopeId now folds in cardsPerRow, so each variant has its own id.
+    const idFor = (cardsPerRow: 1 | 2 | 3 | 4 | 5) => scopeId('icon', baseInput.colors, { cardsPerRow })
     // 4-up reaches its full count at lg (col-lg-3)
     expect(gen({ cardsPerRow: 4 })).toContain(
-      `.au-icon-card--${id}-grid > .row > .col-lg-3 { flex: 0 0 calc((100% - 45px) / 4); max-width: calc((100% - 45px) / 4); }`,
+      `.au-icon-card--${idFor(4)}-grid > .row > .col-lg-3 { flex: 0 0 calc((100% - 45px) / 4); max-width: calc((100% - 45px) / 4); }`,
     )
     // 2-up tops out at md (col-md-6) and has no lg rule
     expect(gen({ cardsPerRow: 2 })).toContain(
-      `.au-icon-card--${id}-grid > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }`,
+      `.au-icon-card--${idFor(2)}-grid > .row > .col-md-6 { flex: 0 0 calc((100% - 15px) / 2); max-width: calc((100% - 15px) / 2); }`,
     )
     expect(gen({ cardsPerRow: 2 })).not.toContain('@media (min-width: 992px)')
     // 5-up reaches its full count at lg via the custom au-col-5 hook
     expect(gen({ cardsPerRow: 5 })).toContain(
-      `.au-icon-card--${id}-grid > .row > .au-col-5 { flex: 0 0 calc((100% - 60px) / 5); max-width: calc((100% - 60px) / 5); }`,
+      `.au-icon-card--${idFor(5)}-grid > .row > .au-col-5 { flex: 0 0 calc((100% - 60px) / 5); max-width: calc((100% - 60px) / 5); }`,
     )
     // 1-up is a single column at every width: no md step, no lg step
     expect(gen({ cardsPerRow: 1 })).not.toContain('@media (min-width: 768px)')
     expect(gen({ cardsPerRow: 1 })).not.toContain('@media (min-width: 992px)')
+  })
+
+  it('align "stretch" grows the columns to fill an under-filled last line', () => {
+    const id = scopeId('icon', baseInput.colors, { cardsPerRow: 3, align: 'stretch' })
+    const g = `au-icon-card--${id}-grid`
+    const out = gen({ cardsPerRow: 3, align: 'stretch' })
+    // stretch mode: flex-grow lets the last (incomplete) line fill; no max-width pin.
+    expect(out).toContain(`.${g} > .row > .col-lg-4 { flex: 1 1 calc((100% - 30px) / 3); }`)
+    expect(out).toContain(`.${g} > .row > .col-md-6 { flex: 1 1 calc((100% - 15px) / 2); }`)
+    expect(out).not.toContain('max-width: calc((100% - 30px) / 3)')
+    // stretch fills via flex-grow, never via the centered row class.
+    expect(out).toContain('<div class="row">')
+  })
+
+  it('left/center keep the fixed-width columns (no flex-grow)', () => {
+    const idLeft = scopeId('icon', baseInput.colors, { cardsPerRow: 3 })
+    const left = gen({ cardsPerRow: 3, align: 'left' })
+    expect(left).toContain(`.au-icon-card--${idLeft}-grid > .row > .col-lg-4 { flex: 0 0 calc((100% - 30px) / 3); max-width: calc((100% - 30px) / 3); }`)
+    expect(left).not.toContain('flex: 1 1')
+    expect(gen({ cardsPerRow: 3, align: 'center' })).not.toContain('flex: 1 1')
   })
 
   it('callout and hover cards no longer carry top/bottom margins', () => {
@@ -423,7 +458,7 @@ describe('logo card', () => {
   })
 
   it('supports the Image shape aspect-ratio rule (like callout/hover)', () => {
-    const id = scopeId('logo', baseInput.colors)
+    const id = scopeId('logo', baseInput.colors, { imageAspect: '1:1' })
     expect(gen({ type: 'logo', imageAspect: '1:1' })).toContain(`.au-logo-card--${id} { aspect-ratio: 1 / 1; }`)
   })
 
@@ -520,9 +555,9 @@ describe('DNN / copy constraints', () => {
 
 describe('image shape (aspect ratio)', () => {
   it('appends an aspect-ratio rule for callout/hover when a preset is chosen', () => {
-    const cId = scopeId('callout', baseInput.colors)
+    const cId = scopeId('callout', baseInput.colors, { imageAspect: '3:2' })
     expect(gen({ type: 'callout', imageAspect: '3:2' })).toContain(`.au-callout-card--${cId} { aspect-ratio: 3 / 2; }`)
-    const hId = scopeId('hover', baseInput.colors)
+    const hId = scopeId('hover', baseInput.colors, { imageAspect: '16:9' })
     expect(gen({ type: 'hover', imageAspect: '16:9' })).toContain(`.au-hover-card--${hId} { aspect-ratio: 16 / 9; }`)
   })
 

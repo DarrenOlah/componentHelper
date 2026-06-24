@@ -65,15 +65,20 @@ const LG_COL: Record<3 | 4 | 5, string> = { 3: 'col-lg-4', 4: 'col-lg-3', 5: 'au
 //   • ≥ 768px  → 2 columns  (col-md-6 — the final count for 2-up; skipped for 1-up)
 //   • ≥ 992px  → full count (col-lg-4 / col-lg-3 / col-lg-2 — for 3/4/5-up)
 // 1-up never steps up: it stays a single col-12 column at every width.
-export function cardGridCss(gridClass: string, cardsPerRow: 1 | 2 | 3 | 4 | 5, gap = CARD_GAP_PX): string {
+export function cardGridCss(gridClass: string, cardsPerRow: 1 | 2 | 3 | 4 | 5, stretch = false, gap = CARD_GAP_PX): string {
   // Flex-basis for n equal columns sharing (n-1) gaps across a 100% row.
   const w = (n: number) => `calc((100% - ${(n - 1) * gap}px) / ${n})`
+  // Column sizing per breakpoint. Default (stretch off): flex 0 0 + max-width pins each
+  // card to exactly 1/n, so an under-filled last line stays card-width (left/centered).
+  // Stretch on: flex 1 1 with no max-width — full lines have no free space so they stay
+  // exact, but an under-filled last line grows its cards to fill the full width.
+  const col = (n: number) => (stretch ? `flex: 1 1 ${w(n)};` : `flex: 0 0 ${w(n)}; max-width: ${w(n)};`)
   // Every count except 1-up drops to 2 columns at md.
   const mdRule =
     cardsPerRow >= 2
       ? `
   @media (min-width: 768px) {
-    .${gridClass} > .row > .col-md-6 { flex: 0 0 ${w(2)}; max-width: ${w(2)}; }
+    .${gridClass} > .row > .col-md-6 { ${col(2)} }
   }`
       : ''
   // 3/4/5-up step up to their full count at lg; 1-up/2-up are already done below lg.
@@ -81,7 +86,7 @@ export function cardGridCss(gridClass: string, cardsPerRow: 1 | 2 | 3 | 4 | 5, g
     cardsPerRow > 2
       ? `
   @media (min-width: 992px) {
-    .${gridClass} > .row > .${LG_COL[cardsPerRow as 3 | 4 | 5]} { flex: 0 0 ${w(cardsPerRow)}; max-width: ${w(cardsPerRow)}; }
+    .${gridClass} > .row > .${LG_COL[cardsPerRow as 3 | 4 | 5]} { ${col(cardsPerRow)} }
   }`
       : ''
   // Compound selector + !important so the zeroed gutters beat the host theme's

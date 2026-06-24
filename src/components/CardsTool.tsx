@@ -220,9 +220,10 @@ const REVEAL_BG_OPTS: { id: CardRevealBg; label: string; blurb: string }[] = [
   { id: 'solid', label: 'Solid', blurb: 'Opaque surface color — hides the icon for the clearest text.' },
 ]
 
-const ALIGNS: { id: CardAlign; label: string }[] = [
-  { id: 'left', label: 'Left' },
-  { id: 'center', label: 'Centered' },
+const ALIGNS: { id: CardAlign; label: string; hint: string }[] = [
+  { id: 'left', label: 'Left', hint: 'An under-filled last row stays flush left.' },
+  { id: 'center', label: 'Centered', hint: 'An under-filled last row is centered.' },
+  { id: 'stretch', label: 'Stretch', hint: 'Cards on an under-filled last row grow to fill the width.' },
 ]
 
 const CONTEXTS: { id: PreviewContext; label: string }[] = [
@@ -884,9 +885,7 @@ export function CardsTool() {
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-gray-400">
-            Affects only lines that aren’t full (too few cards, or the last wrapped row). Full rows look the same either way.
-          </p>
+          <p className="mt-2 text-xs text-gray-400">{ALIGNS.find(a => a.id === align)?.hint}</p>
 
           {(type === 'callout' || type === 'hover' || type === 'logo') && (
             <>

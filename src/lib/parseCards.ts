@@ -72,7 +72,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
 
   // alignment from the row class.
   const row = cardEls[0].closest('[class*="row"]')
-  const align: CardAlign = row?.className.includes('justify-content-center') ? 'center' : 'left'
+  let align: CardAlign = row?.className.includes('justify-content-center') ? 'center' : 'left'
 
   // colors from <style> custom props; fall back to inline styles, then defaults.
   let cssText = Array.from(doc.querySelectorAll('style'))
@@ -83,6 +83,9 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       .map(el => el.getAttribute('style') || '')
       .join('\n')
   }
+  // Stretch leaves no row-class marker, but its column rules use `flex: 1 1 calc(`
+  // (instead of `flex: 0 0 …; max-width`), so recover it from the scoped grid CSS.
+  if (/flex:\s*1\s+1\s+calc\(/.test(cssText)) align = 'stretch'
   const colors: CardColors = {
     accent: cssVar(cssText, 'au-gold') ?? DEFAULT_CARD_COLORS.accent,
     accentText: cssVar(cssText, 'au-ink') ?? DEFAULT_CARD_COLORS.accentText,

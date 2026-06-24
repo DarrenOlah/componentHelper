@@ -40,6 +40,17 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
     expect(out.cards[1].external).toBe(false) // internal link stays internal
   })
 
+  it('recovers align "stretch" from the grid CSS (no row-class marker)', () => {
+    const out = roundTrip({
+      type: 'icon',
+      cardsPerRow: 3,
+      align: 'stretch',
+      colors,
+      cards: [{ imageSrc: '/x.png', imageAlt: 'X', iconMode: 'image', iconClass: '', heading: 'H', body: '', buttonText: 'Go', ctaText: '', buttonHref: '/go', external: false }],
+    })!
+    expect(out.align).toBe('stretch')
+  })
+
   it('callout cards: image + button only', () => {
     const input: GenerateCardsInput = {
       type: 'callout',
