@@ -387,6 +387,16 @@ export function CardsTool() {
 
   const showHeading = type === 'icon' // hover's gold band is button text, not a heading
   const showBody = type !== 'callout' // icon __text + hover __desc
+
+  // Stretch + a fixed image shape oversizes the cards on an under-filled row: with no
+  // max-width the stretched cards grow wide, and the aspect-ratio makes them grow tall
+  // to match. A row under-fills at desktop when the count isn't a multiple of cardsPerRow,
+  // and at the tablet 2-up step when the count is odd. Icon cards have no image shape.
+  const stretchAspectRisk =
+    align === 'stretch' &&
+    imageAspect !== 'auto' &&
+    cardsPerRow > 1 &&
+    (cards.length % cardsPerRow !== 0 || cards.length % 2 !== 0)
   const validCards = cards.filter(c => c.buttonText.trim() !== '' && c.buttonHref.trim() !== '')
   const isComplete = cards.length > 0 && validCards.length === cards.length
 
@@ -904,6 +914,12 @@ export function CardsTool() {
               <p className="mt-2 text-xs text-gray-400">
                 {type === 'logo' && 'Tip: Square (1:1) suits logos and icons.'}
               </p>
+              {stretchAspectRisk && (
+                <p className="mt-1 text-[11px] text-amber-600">
+                  ⚠ With Stretch and a fixed image shape, the cards on an under-filled row grow oversized.
+                  Use a card count that fills every row, or switch alignment to Left/Centered or shape to Auto.
+                </p>
+              )}
             </>
           )}
 

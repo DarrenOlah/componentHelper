@@ -72,7 +72,13 @@ export function cardGridCss(gridClass: string, cardsPerRow: 1 | 2 | 3 | 4 | 5, s
   // card to exactly 1/n, so an under-filled last line stays card-width (left/centered).
   // Stretch on: flex 1 1 with no max-width — full lines have no free space so they stay
   // exact, but an under-filled last line grows its cards to fill the full width.
-  const col = (n: number) => (stretch ? `flex: 1 1 ${w(n)};` : `flex: 0 0 ${w(n)}; max-width: ${w(n)};`)
+  //   min-width: 0 is required in stretch mode: without max-width, a card's automatic
+  //   minimum size (min-width: auto) floors the column at its content-based minimum.
+  //   For cover-photo cards that minimum is transferred from min-height through the
+  //   Image-shape aspect-ratio (e.g. 250px x 3/2 = 375px), which is wider than the 1/n
+  //   basis, so columns refuse to shrink and a 3-up wraps to 2-up. min-width: 0 lifts
+  //   that floor so flex-basis/grow alone control the width.
+  const col = (n: number) => (stretch ? `flex: 1 1 ${w(n)}; min-width: 0;` : `flex: 0 0 ${w(n)}; max-width: ${w(n)};`)
   // Every count except 1-up drops to 2 columns at md.
   const mdRule =
     cardsPerRow >= 2

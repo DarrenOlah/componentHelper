@@ -305,11 +305,25 @@ describe('inter-card gap (uniform 15px, flush with text edges)', () => {
     const g = `au-icon-card--${id}-grid`
     const out = gen({ cardsPerRow: 3, align: 'stretch' })
     // stretch mode: flex-grow lets the last (incomplete) line fill; no max-width pin.
-    expect(out).toContain(`.${g} > .row > .col-lg-4 { flex: 1 1 calc((100% - 30px) / 3); }`)
-    expect(out).toContain(`.${g} > .row > .col-md-6 { flex: 1 1 calc((100% - 15px) / 2); }`)
+    // min-width: 0 lifts the automatic-minimum floor (otherwise an aspect-ratio card's
+    // transferred min-width would wrap a 3-up to 2-up — see the regression test below).
+    expect(out).toContain(`.${g} > .row > .col-lg-4 { flex: 1 1 calc((100% - 30px) / 3); min-width: 0; }`)
+    expect(out).toContain(`.${g} > .row > .col-md-6 { flex: 1 1 calc((100% - 15px) / 2); min-width: 0; }`)
     expect(out).not.toContain('max-width: calc((100% - 30px) / 3)')
     // stretch fills via flex-grow, never via the centered row class.
     expect(out).toContain('<div class="row">')
+  })
+
+  it('stretch + Image shape: columns keep min-width:0 so an aspect-ratio card cannot wrap the row', () => {
+    // Regression: a logo/callout/hover card has min-height:250px; the Image-shape rule
+    // adds aspect-ratio, whose transferred minimum (250 x ratio) would otherwise floor
+    // each column wider than 1/n and collapse a 3-up to 2-up. min-width:0 prevents that.
+    const id = scopeId('logo', baseInput.colors, { cardsPerRow: 3, imageAspect: '3:2', align: 'stretch' })
+    const g = `au-logo-card--${id}-grid`
+    const out = gen({ type: 'logo', cardsPerRow: 3, imageAspect: '3:2', align: 'stretch' })
+    expect(out).toContain(`.${g} > .row > .col-lg-4 { flex: 1 1 calc((100% - 30px) / 3); min-width: 0; }`)
+    // the aspect-ratio rule still ships (it's what makes min-width:0 necessary)
+    expect(out).toContain(`.au-logo-card--${id} { aspect-ratio: 3 / 2; }`)
   })
 
   it('left/center keep the fixed-width columns (no flex-grow)', () => {
