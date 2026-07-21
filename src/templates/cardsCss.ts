@@ -557,6 +557,87 @@ ${iconSize}
   }${reveal}`
 }
 
+// ---- Lockup card: logo + vertical divider + stacked name, locked side by side -
+// A horizontal composition (unlike the other, vertical types): a fixed-size logo, a
+// gold divider rule, and a multi-line uppercase name, all wrapped as one link. Built
+// for directory/affiliate rows of organizations. Background is transparent (no
+// surface fill / no 250px floor — the divider sets the height); a gold border appears
+// on hover/focus. The stretched link is the name's <a> with an inset ::after overlay
+// (the card is position: relative and not overflow-hidden, so plain inset: 0 works).
+// Uses only --au-gold (divider + hover border) and --au-text (name); surface/ink are
+// unused by this type.
+export function lockupCardCss(inst: string, v: CardCssVars): string {
+  return `.${inst} {
+${varsBlock(v)}
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.375rem;
+    width: 100%;
+    margin: 0;
+    padding: 0.825rem;
+    background: transparent !important;
+    color: var(--au-text);
+    border: 2px solid transparent;
+    transition: border-color 0.3s ease !important;
+  }
+  .${inst}:hover,
+  .${inst}:focus-within { border-color: var(--au-gold) !important; }
+  .${inst}__icon {
+    width: 6.6rem;
+    height: 6.6rem;
+    flex: 0 0 auto;
+    object-fit: contain;
+    object-position: center;
+    background: transparent;
+  }
+  .${inst}__icon--fa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    object-fit: unset;
+  }
+  .${inst}__icon--fa > i {
+    font-size: 5.5rem;
+    line-height: 1;
+    color: var(--au-text);
+  }
+  .${inst}__divider {
+    flex: 0 0 auto;
+    width: 2px;
+    height: 8.8rem;
+    background: var(--au-gold);
+  }
+  .${inst}__title {
+    flex: 0 0 auto;
+    width: 8.5rem;
+    color: var(--au-text) !important;
+    background: transparent !important;
+    font-family: ${F530} !important;
+    font-weight: 800 !important;
+    font-size: 1.21rem;
+    line-height: 1.2;
+    text-transform: uppercase !important;
+  }
+  .${inst}__title-link,
+  .${inst}__title-link:link,
+  .${inst}__title-link:visited,
+  .${inst}__title-link:hover,
+  .${inst}__title-link:focus,
+  .${inst}__title-link:active {
+    background: transparent !important;
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+  .${inst}__title-link:focus { outline: none; }
+  .${inst}__title-link::after { content: ""; position: absolute; inset: 0; }
+  @media (prefers-reduced-motion: reduce) {
+    .${inst} { transition: none !important; }
+  }`
+}
+
 // Minimal Bootstrap-4 grid subset for the PREVIEW iframe only (offline,
 // deterministic). The copy output ships no Bootstrap — the DNN theme provides it.
 // Breakpoints (576/768) match Bootstrap 4 so preview parity holds.

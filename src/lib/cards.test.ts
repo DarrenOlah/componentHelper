@@ -505,6 +505,57 @@ describe('logo card', () => {
   })
 })
 
+describe('lockup card', () => {
+  it('emits logo + divider + name-link, one stretched link, no button/body/cta', () => {
+    const id = scopeId('lockup', baseInput.colors)
+    const out = gen({ type: 'lockup' })
+    // the logo reuses the shared __icon box (image mode)
+    expect(out).toContain(`<img class="au-lockup-card--${id}__icon"`)
+    // the gold divider is a decorative span
+    expect(out).toContain(`<span class="au-lockup-card--${id}__divider" aria-hidden="true"></span>`)
+    // the name is the single stretched link (its text is the accessible name)
+    expect(out).toContain(
+      `<a class="au-lockup-card--${id}__title-link" href="https://example.com/a"><span class="au-lockup-card--${id}__title">Alpha</span></a>`,
+    )
+    expect(out).toContain(`.au-lockup-card--${id}__title-link::after { content: ""; position: absolute; inset: 0; }`)
+    // none of the button/body/cta scaffolding from the other types
+    expect(out).not.toContain(`class="au-lockup-card--${id}__btn"`)
+    expect(out).not.toContain(`class="au-lockup-card--${id}__desc"`)
+    expect(out).not.toContain(`class="au-lockup-card--${id}__cta"`)
+  })
+
+  it('turns line breaks in the name into <br /> (each line escaped as text)', () => {
+    const out = gen({
+      type: 'lockup',
+      cards: [{ ...baseInput.cards[0], heading: 'Army\nUniversity\nPress' }],
+    })
+    expect(out).toContain('Army<br />University<br />Press')
+    // an <a> & <b> in a line stays escaped, and the newline is the only markup
+    const esc = gen({ type: 'lockup', cards: [{ ...baseInput.cards[0], heading: 'a & b\n<c>' }] })
+    expect(esc).toContain('a &amp; b<br />&lt;c&gt;')
+  })
+
+  it('applies the external target/rel to the name link', () => {
+    const out = gen({ type: 'lockup', cards: [{ ...baseInput.cards[0], external: true }] })
+    expect(out).toContain('href="https://example.com/a" target="_blank" rel="noopener"')
+  })
+
+  it('supports a Font Awesome glyph as the logo', () => {
+    const id = scopeId('lockup', baseInput.colors)
+    const out = gen({ type: 'lockup', cards: [{ ...baseInput.cards[0], iconMode: 'fa', iconClass: 'fa-solid fa-star' }] })
+    expect(out).toContain(
+      `<span class="au-lockup-card--${id}__icon au-lockup-card--${id}__icon--fa"><i class="fa-solid fa-star" aria-hidden="true"></i></span>`,
+    )
+    expect(out).not.toContain(`<img class="au-lockup-card--${id}__icon"`)
+  })
+
+  it('never emits an aspect-ratio rule (no cover photo) and ships a transparent card', () => {
+    const out = gen({ type: 'lockup', imageAspect: '3:2' })
+    expect(out).not.toContain('aspect-ratio:')
+    expect(out).toContain('background: transparent !important;')
+  })
+})
+
 describe('revealHover (preview only)', () => {
   it('preview reveals the hover card; copy never does', () => {
     const preview = generateCardsPreviewHtml({ ...baseInput, type: 'hover' }, { revealHover: true })

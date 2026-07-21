@@ -10,13 +10,14 @@ import {
   calloutCardCss,
   hoverCardCss,
   logoCardCss,
+  lockupCardCss,
   cardGridCss,
   PREVIEW_BOOTSTRAP_GRID_CSS,
   PREVIEW_SIM_CSS,
   type CardCssVars,
 } from '../templates/cardsCss'
 
-export type CardType = 'icon' | 'callout' | 'hover' | 'logo'
+export type CardType = 'icon' | 'callout' | 'hover' | 'logo' | 'lockup'
 
 // Icon source for the icon/logo cards: a Font Awesome glyph or an image. The live
 // site already loads FA Free 6.4.2, so FA mode emits only class-based <i> markup
@@ -274,6 +275,13 @@ function commonFields(card: CardContent) {
 // CSS still applies and the importer's [class*="__icon"] selector still matches.
 // Branches on iconMode (not emptiness); the && guard falls back to the image if FA
 // mode somehow has no valid class. No FA CSS ships — the live site provides it.
+// Escape a multi-line string to HTML, turning newlines into XHTML <br /> so the
+// lockup name keeps its hand-authored line breaks (e.g. "Army\nUniversity\nPress").
+// Each line is escaped as text; only the line breaks become markup.
+function escapeMultiline(text: string): string {
+  return text.split(/\r?\n/).map(escapeHtmlText).join('<br />')
+}
+
 function cardIconMarkup(inst: string, card: CardContent, src: string, alt: string): string {
   const fa = sanitizeIconClass(card.iconClass)
   if (card.iconMode === 'fa' && fa) {
@@ -337,6 +345,20 @@ function logoCardMarkup(inst: string, card: CardContent): string {
   ].join('\n')
 }
 
+// Lockup: a horizontal logo · divider · multi-line name, all one link. Reuses the
+// shared icon box (image or FA glyph). The name's <a> is the stretched link (its
+// ::after overlay covers the whole card), and its text is the card's accessible name —
+// so the name is required (no "Learn more" fallback; the UI enforces it). Body, button
+// text, and CTA are unused by this type.
+function lockupCardMarkup(inst: string, card: CardContent): string {
+  const { src, alt, href, heading, linkAttrs } = commonFields(card)
+  return [
+    cardIconMarkup(inst, card, src, alt),
+    `          <span class="${inst}__divider" aria-hidden="true"></span>`,
+    `          <a class="${inst}__title-link" href="${href}"${linkAttrs}><span class="${inst}__title">${escapeMultiline(heading)}</span></a>`,
+  ].join('\n')
+}
+
 const CSS_BUILDERS: Record<
   CardType,
   (inst: string, v: CardCssVars, opts?: { revealable?: boolean; fit?: CardIconFit; bg?: CardRevealBg }) => string
@@ -345,12 +367,14 @@ const CSS_BUILDERS: Record<
   callout: calloutCardCss,
   hover: hoverCardCss,
   logo: logoCardCss,
+  lockup: lockupCardCss,
 }
 const MARKUP: Record<CardType, (inst: string, card: CardContent) => string> = {
   icon: iconCardMarkup,
   callout: calloutCardMarkup,
   hover: hoverCardMarkup,
   logo: logoCardMarkup,
+  lockup: lockupCardMarkup,
 }
 
 // Full <style> + Bootstrap-grid markup to paste into a DNN Text/HTML module.
@@ -373,7 +397,8 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   // Optional fixed aspect ratio for the cover-photo cards: a later, same-specificity
   // rule that only adds `aspect-ratio`, so the card's height tracks its width while
   // min-height stays a small-width floor. Never emitted for icon cards or 'auto'.
-  const ar = input.type !== 'icon' ? ASPECT_CSS[input.imageAspect ?? 'auto'] : ''
+  const hasCoverPhoto = input.type === 'callout' || input.type === 'hover' || input.type === 'logo'
+  const ar = hasCoverPhoto ? ASPECT_CSS[input.imageAspect ?? 'auto'] : ''
   const aspectRule = ar ? `\n  .${inst} { aspect-ratio: ${ar}; }` : ''
   const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover, fit: input.iconFit ?? 'contain', bg: input.revealBg ?? 'gradient' })}
   ${cardGridCss(gridClass, input.cardsPerRow, input.align === 'stretch')}${aspectRule}`
@@ -464,7 +489,7 @@ export interface CardsSnapshot {
   cards: CardContent[]
 }
 
-const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover', 'logo']
+const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover', 'logo', 'lockup']
 const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center', 'stretch']
 const PREVIEW_CONTEXTS: readonly PreviewContext[] = ['none', 'left', 'both']
 const PER_ROW_VALUES: readonly CardsPerRow[] = [1, 2, 3, 4, 5]

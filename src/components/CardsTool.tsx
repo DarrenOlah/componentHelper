@@ -192,6 +192,7 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
   { id: 'callout', label: 'Callout', blurb: 'Full-cover image with a full-width button band.' },
   { id: 'hover', label: 'Hover', blurb: 'Image with a panel that slides up on hover/focus.' },
   { id: 'logo', label: 'Logo', blurb: 'Centered icon/logo with a label band; optional hover reveal.' },
+  { id: 'lockup', label: 'Lockup', blurb: 'Logo + divider + name, locked side by side as one link.' },
 ]
 
 const PER_ROW: CardsPerRow[] = [1, 2, 3, 4, 5]
@@ -385,8 +386,8 @@ export function CardsTool() {
 
   const { type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards } = state
 
-  const showHeading = type === 'icon' // hover's gold band is button text, not a heading
-  const showBody = type !== 'callout' // icon __text + hover __desc
+  const showHeading = type === 'icon' || type === 'lockup' // hover's gold band is button text, not a heading; lockup's name reuses heading
+  const showBody = type !== 'callout' && type !== 'lockup' // icon __text + hover __desc
 
   // Stretch + a fixed image shape oversizes the cards on an under-filled row: with no
   // max-width the stretched cards grow wide, and the aspect-ratio makes them grow tall
@@ -397,7 +398,11 @@ export function CardsTool() {
     imageAspect !== 'auto' &&
     cardsPerRow > 1 &&
     (cards.length % cardsPerRow !== 0 || cards.length % 2 !== 0)
-  const validCards = cards.filter(c => c.buttonText.trim() !== '' && c.buttonHref.trim() !== '')
+  // Lockup's whole card is one link with no button: its required label is the name
+  // (heading). Every other type's required label is the button text.
+  const validCards = cards.filter(c =>
+    c.buttonHref.trim() !== '' && (type === 'lockup' ? c.heading.trim() !== '' : c.buttonText.trim() !== ''),
+  )
   const isComplete = cards.length > 0 && validCards.length === cards.length
 
   // Whether the look-settings (type/layout/colors) are already at their defaults —
@@ -866,7 +871,7 @@ export function CardsTool() {
           </div>
 
           <label className="block text-xs font-medium text-gray-700 mb-1">Card type</label>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {TYPES.map(t => (
               <button key={t.id} type="button" onClick={() => setState(s => ({ ...s, type: t.id }))} className={segBtn(type === t.id)}>
                 {t.label}
@@ -962,16 +967,25 @@ export function CardsTool() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <SectionLabel number={2} title="Colors" done={true} />
           <p className="text-xs text-gray-400 mb-3">One scheme for the whole row.</p>
-          <ColorField label="Accent / band" value={accent} onChange={setAccent} defaultValue={DEFAULT_CARD_COLORS.accent} />
-          <ColorField label="Card surface" value={surface} onChange={setColor('surface')} defaultValue={DEFAULT_CARD_COLORS.surface} />
+          <ColorField
+            label={type === 'lockup' ? 'Accent / divider' : 'Accent / band'}
+            value={accent}
+            onChange={setAccent}
+            defaultValue={DEFAULT_CARD_COLORS.accent}
+          />
+          {type !== 'lockup' && (
+            <ColorField label="Card surface" value={surface} onChange={setColor('surface')} defaultValue={DEFAULT_CARD_COLORS.surface} />
+          )}
           <ColorField label="Text" value={text} onChange={setColor('text')} defaultValue={DEFAULT_CARD_COLORS.text} />
 
-          <details className="mt-1">
-            <summary className="cursor-pointer text-xs font-medium text-gray-600 select-none mb-3">
-              Advanced colors
-            </summary>
-            <ColorField label="Band text (ink)" value={accentText} onChange={setColor('accentText')} defaultValue={DEFAULT_CARD_COLORS.accentText} />
-          </details>
+          {type !== 'lockup' && (
+            <details className="mt-1">
+              <summary className="cursor-pointer text-xs font-medium text-gray-600 select-none mb-3">
+                Advanced colors
+              </summary>
+              <ColorField label="Band text (ink)" value={accentText} onChange={setColor('accentText')} defaultValue={DEFAULT_CARD_COLORS.accentText} />
+            </details>
+          )}
         </div>
 
       </div>{/* ── END COLUMN 1 ── */}
@@ -1016,7 +1030,7 @@ export function CardsTool() {
                   </div>
                 </div>
 
-                {type === 'icon' || type === 'logo' ? (
+                {type === 'icon' || type === 'logo' || type === 'lockup' ? (
                   <>
                     <label className="block text-[11px] font-medium text-gray-600 mb-1">Icon source</label>
                     <div className="flex gap-2 mb-1.5">
@@ -1118,20 +1132,33 @@ export function CardsTool() {
                   </>
                 )}
 
-                {showHeading && (
-                  <>
-                    <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                      Heading (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={card.heading}
-                      onChange={e => updateCard(card.id, { heading: e.target.value })}
-                      placeholder="Heading (optional)"
-                      className={`${inputCls} mb-1.5`}
-                    />
-                  </>
-                )}
+                {showHeading &&
+                  (type === 'lockup' ? (
+                    <>
+                      <label className="block text-[11px] font-medium text-gray-600 mb-1">Name *</label>
+                      <textarea
+                        value={card.heading}
+                        onChange={e => updateCard(card.id, { heading: e.target.value })}
+                        placeholder="Organization name *"
+                        rows={3}
+                        className={`${inputCls} mb-1 resize-y`}
+                      />
+                      <p className="-mt-0.5 mb-1.5 text-[11px] text-gray-400">
+                        Each line break becomes a new line in the name.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-[11px] font-medium text-gray-600 mb-1">Heading (optional)</label>
+                      <input
+                        type="text"
+                        value={card.heading}
+                        onChange={e => updateCard(card.id, { heading: e.target.value })}
+                        placeholder="Heading (optional)"
+                        className={`${inputCls} mb-1.5`}
+                      />
+                    </>
+                  ))}
                 {showBody && (
                   <>
                     <label className="block text-[11px] font-medium text-gray-600 mb-1">
@@ -1147,16 +1174,20 @@ export function CardsTool() {
                   </>
                 )}
 
-                <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                  Button text *
-                </label>
-                <input
-                  type="text"
-                  value={card.buttonText}
-                  onChange={e => updateCard(card.id, { buttonText: e.target.value })}
-                  placeholder="Button text *"
-                  className={`${inputCls} mb-1.5`}
-                />
+                {type !== 'lockup' && (
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                      Button text *
+                    </label>
+                    <input
+                      type="text"
+                      value={card.buttonText}
+                      onChange={e => updateCard(card.id, { buttonText: e.target.value })}
+                      placeholder="Button text *"
+                      className={`${inputCls} mb-1.5`}
+                    />
+                  </>
+                )}
                 {(type === 'hover' || type === 'logo') && (
                   <>
                     <label className="block text-[11px] font-medium text-gray-600 mb-1">
@@ -1255,7 +1286,9 @@ export function CardsTool() {
             + Add card {cards.length >= MAX_CARDS && `(max ${MAX_CARDS})`}
           </button>
           <p className="mt-2 text-xs text-gray-400">
-            Each card needs button text and a URL. Image is optional — a placeholder shows until you add one.
+            {type === 'lockup'
+              ? 'Each card needs a name and a URL. A logo is optional — a placeholder shows until you add one.'
+              : 'Each card needs button text and a URL. Image is optional — a placeholder shows until you add one.'}
           </p>
         </div>
       </div>{/* ── END COLUMN 2 ── */}
