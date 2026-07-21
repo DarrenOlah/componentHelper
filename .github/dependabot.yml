@@ -6,3 +6,7 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
+    ignore:
+      # Must match the live site's Font Awesome (FA Free 6.4.2). Keep this pin,
+      # public/fontawesome/, and src/data/faCatalog.ts all on 6.4.2 — do not bump.
+      - dependency-name: "@fortawesome/fontawesome-free"
