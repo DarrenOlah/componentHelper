@@ -125,6 +125,47 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
     expect(gradient.revealBg).toBe('gradient')
   })
 
+  it('lockup cards: logo + name link, with multi-line names preserved', () => {
+    const input: GenerateCardsInput = {
+      type: 'lockup',
+      cardsPerRow: 2,
+      align: 'center',
+      colors,
+      cards: [
+        { imageSrc: '/logo/asep.png', imageAlt: 'ASEP', iconMode: 'image', iconClass: '', heading: 'Army\nStrategic\nEducation\nProgram', body: '', buttonText: '', ctaText: '', buttonHref: '/ASEP', external: false },
+        { imageSrc: '/logo/press.png', imageAlt: 'AUP', iconMode: 'image', iconClass: '', heading: 'Army\nUniversity\nPress', body: '', buttonText: '', ctaText: '', buttonHref: 'https://www.armyupress.army.mil/', external: true },
+      ],
+    }
+    const out = roundTrip(input)!
+    expect(out).not.toBeNull()
+    expect(out.type).toBe('lockup')
+    expect(out.cardsPerRow).toBe(2)
+    expect(out.align).toBe('center')
+    expect(out.cards).toHaveLength(2)
+    // the hand-authored line breaks survive as newlines in the name (heading)
+    expect(out.cards[0]).toMatchObject({
+      imageSrc: '/logo/asep.png',
+      imageAlt: 'ASEP',
+      heading: 'Army\nStrategic\nEducation\nProgram',
+      buttonHref: '/ASEP',
+      external: false,
+    })
+    expect(out.cards[1].heading).toBe('Army\nUniversity\nPress')
+    expect(out.cards[1].external).toBe(true) // target="_blank" recovered
+  })
+
+  it('lockup cards: recovers a Font Awesome logo', () => {
+    const input: GenerateCardsInput = {
+      type: 'lockup',
+      cardsPerRow: 3,
+      align: 'left',
+      colors,
+      cards: [{ imageSrc: '', imageAlt: '', iconMode: 'fa', iconClass: 'fa-solid fa-star', heading: 'Star\nUnit', body: '', buttonText: '', ctaText: '', buttonHref: '/star', external: false }],
+    }
+    const out = roundTrip(input)!
+    expect(out.cards[0]).toMatchObject({ iconMode: 'fa', iconClass: 'fa-solid fa-star', heading: 'Star\nUnit', imageSrc: '' })
+  })
+
   it('recovers 1-up (col-12 only) and 5-up (au-col-5 hook) layouts', () => {
     const oneUp = roundTrip({
       type: 'icon',

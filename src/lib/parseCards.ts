@@ -47,7 +47,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   if (typeof DOMParser === 'undefined') return null
 
   // Type from any surviving `au-<type>-card` class (works even for partial/rendered paste).
-  const type = (html.match(/au-(icon|callout|hover|logo)-card/) || [])[1] as CardType | undefined
+  const type = (html.match(/au-(icon|callout|hover|logo|lockup)-card/) || [])[1] as CardType | undefined
   if (!type) return null
 
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -112,6 +112,14 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
     type === 'logo' && /__box\s*\{[^}]*background:\s*var\(--au-surface\)/.test(cssText) ? 'solid' : 'gradient'
 
   const txt = (el: Element | null) => (el?.textContent ?? '').trim()
+  // Like txt(), but turns <br> into newlines: the lockup name stores its hand-authored
+  // line breaks as <br />, which textContent alone would concatenate into one line.
+  const txtWithBreaks = (el: Element | null): string => {
+    if (!el) return ''
+    const tmp = el.ownerDocument.createElement('div')
+    tmp.innerHTML = el.innerHTML.replace(/<br\s*\/?>/gi, '\n')
+    return (tmp.textContent ?? '').trim()
+  }
   const attr = (el: Element | null, name: string) => el?.getAttribute(name) ?? ''
   const unplaceholder = (src: string) => (src === IMAGE_PLACEHOLDER ? '' : src)
   // Read the fields shared by every type's link: label, href, and external flag.
@@ -154,6 +162,16 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       const a = el.querySelector('[class*="__btn"]')
       if (!a) continue
       Object.assign(card, readAnchor(a))
+    } else if (type === 'lockup') {
+      // logo + divider + name, all one link (__title-link). The name is the link text
+      // (kept in heading, with its <br /> line breaks recovered as newlines); there's
+      // no button/body/cta. Note: readAnchor isn't used — the name goes to heading, not
+      // buttonText.
+      const a = el.querySelector('[class*="__title-link"]')
+      if (!a) continue
+      card.buttonHref = attr(a, 'href')
+      card.external = attr(a, 'target').toLowerCase() === '_blank'
+      card.heading = txtWithBreaks(a)
     } else {
       // hover/logo: the gold band (__title-link) is the single stretched link.
       const a = el.querySelector('[class*="__title-link"]')

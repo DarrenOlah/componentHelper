@@ -1370,7 +1370,9 @@ export function CardsTool() {
             </>
           ) : (
             <p className="text-xs text-gray-400">
-              Give every card button text and a URL to generate the code.
+              {type === 'lockup'
+                ? 'Give every card a name and a URL to generate the code.'
+                : 'Give every card button text and a URL to generate the code.'}
             </p>
           )}
         </div>
