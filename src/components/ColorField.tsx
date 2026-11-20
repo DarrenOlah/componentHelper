@@ -12,7 +12,7 @@ export interface ArmyColor {
 // `text` is the legible label color over that background (per brand guidance).
 export const ARMY_COLORS: ArmyColor[] = [
   { name: 'Civilian Blue', hex: '#B4CFED', text: '#000000' },
-  { name: 'NCO Green', hex: '#087F47', text: '#FFFFFF' },
+  { name: 'NCO Green', hex: '#676C4A', text: '#FFFFFF' },
   { name: 'Warrant Officer Brown', hex: '#804331', text: '#FFFFFF' },
   { name: 'Command Blue', hex: '#00427E', text: '#FFFFFF' },
   { name: 'Army Gold', hex: '#FFCC33', text: '#000000' },
