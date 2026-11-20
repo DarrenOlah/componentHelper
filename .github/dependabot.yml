@@ -17,3 +17,8 @@ updates:
       # Must match the live site's Font Awesome (FA Free 6.4.2). Keep this pin,
       # public/fontawesome/, and src/data/faCatalog.ts all on 6.4.2 — do not bump.
       - dependency-name: "@fortawesome/fontawesome-free"
+      # typescript-eslint 8.x only supports TypeScript <6.1 (and .npmrc's
+      # legacy-peer-deps hides the peer conflict), so hold TS on 6.0.x.
+      # Remove once typescript-eslint supports TS 7.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
