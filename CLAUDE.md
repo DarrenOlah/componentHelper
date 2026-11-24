@@ -8,6 +8,8 @@ Guidance for working in this repo.
 copy-paste HTML/CSS snippets for DNN (DotNetNuke) Text/HTML modules. It mirrors
 the architecture of the sister `heroHelper` repo. It's a *multi-tool* app; the
 tools today are the **Drawer** (`#/drawer`) and the **Card Helper** (`#/cards`).
+Both have an **Import** that recovers editable fields from previously generated HTML;
+when a generator's output changes, update its `parse*` importer and round-trip test too.
 
 The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
 
@@ -42,8 +44,18 @@ The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
   draft (`componentHelper-cards-draft`) and named collections
   (`componentHelper-cards-collections`). "Start over" wipes the draft; "Reset
   settings" resets only the look, keeping cards. Its **Import** / **Saved Card
-  Collections** buttons render into App's right-aligned `#cards-nav-slot` via a
-  `createPortal`, so the tool keeps state ownership while pinning controls to the nav row.
+  Collections** buttons render into App's right-aligned `#tool-nav-slot` via a
+  `createPortal`, so the tool keeps state ownership while pinning controls to the nav row
+  (`#tool-nav-center` is the centered slot).
+- `src/lib/parseDrawer.ts` — Drawer importer (`parseDrawerHtml`), same best-effort,
+  DOM-aware pattern as `parseCards.ts` (jsdom test). Targets the current generator's
+  output only; older blocks import whatever still matches.
+- `src/components/ImportButton.tsx` — shared import UI (nav button + modal + "Imported …"
+  flash) used by Cards and Drawer. The tool supplies `parse` → `{ ok, value, summary,
+  notes }` and `onApply`. A clean import into an untouched editor applies on paste;
+  any `notes` (defaulted/skipped fields) or a `replaceWarning` (unsaved work) show a
+  review step first, so nothing changes before the user sees the caveats.
+  **heroHelper has a copy** of this component — keep the two in sync.
 - `public/fonts/` — brand G.I. `woff2` fonts, served at `base`. Loaded via
   `@font-face` **into the preview iframe only** (`generateDrawerPreviewHtml`), so
   the preview renders in the real typeface; the copy output stays `@font-face`-free.
@@ -98,4 +110,4 @@ npm run dev | test | test:run | build | lint
 
 Always run `npm run test:run` and `npm run build` after touching the generators or
 their CSS — `src/lib/drawer.ts`, `src/templates/drawerCss.ts`, `src/lib/cards.ts`,
-`src/lib/parseCards.ts`, `src/templates/cardsCss.ts`, or `src/templates/armyButtonsCss.ts`.
+`src/lib/parseCards.ts`, `src/lib/parseDrawer.ts`, `src/templates/cardsCss.ts`, or `src/templates/armyButtonsCss.ts`.

@@ -44,8 +44,8 @@ export default function App() {
 
         {/* Nav: Hero Image | Hero Video | Sidenav | Drawer | Cards.
             Two portal targets the active tool can render controls into: a centered
-            slot (the Card Helper's open-file name + Save controls) and a right slot
-            (its Import / Collections buttons). */}
+            slot (e.g. the Card Helper's open-file name + Save controls) and a right slot
+            (each tool's Import button, plus Cards' Collections). */}
         <div className="relative mb-4 flex items-center justify-between gap-3">
           <nav className="text-sm" aria-label="Tool selector">
             {NAV_ITEMS.map((item, i) => (
@@ -61,8 +61,8 @@ export default function App() {
               </span>
             ))}
           </nav>
-          <div id="cards-nav-center" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2" />
-          <div id="cards-nav-slot" className="flex items-center gap-2" />
+          <div id="tool-nav-center" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2" />
+          <div id="tool-nav-slot" className="flex items-center gap-2" />
         </div>
 
         {/* Header */}

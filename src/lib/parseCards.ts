@@ -46,7 +46,22 @@ function cssVar(text: string, name: string): string | undefined {
   return m ? m[1].trim() : undefined
 }
 
+export interface CardsImport {
+  input: GenerateCardsInput
+  // Cards whose markup was found but couldn't be used (no link) and were dropped.
+  skipped: number
+  // Whether the paste carried the generated <style> block. Without it, the look
+  // settings that live only in CSS (colors, image shape, stretch, logo fit/reveal)
+  // fell back to defaults.
+  hasStyle: boolean
+}
+
 export function parseCardsHtml(html: string): GenerateCardsInput | null {
+  return parseCardsImport(html)?.input ?? null
+}
+
+// Like parseCardsHtml, plus what the importer UI needs to report (skips, missing CSS).
+export function parseCardsImport(html: string): CardsImport | null {
   if (typeof DOMParser === 'undefined') return null
 
   // Type from any surviving `au-<type>-card` class (works even for partial/rendered paste).
@@ -78,6 +93,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   let align: CardAlign = row?.className.includes('justify-content-center') ? 'center' : 'left'
 
   // colors from <style> custom props; fall back to inline styles, then defaults.
+  const hasStyle = doc.querySelectorAll('style').length > 0
   let cssText = Array.from(doc.querySelectorAll('style'))
     .map(s => s.textContent || '')
     .join('\n')
@@ -214,5 +230,9 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   }
   if (cards.length === 0) return null
 
-  return { type, cardsPerRow, imageAspect, iconFit, revealBg, button, align, colors, cards }
+  return {
+    input: { type, cardsPerRow, imageAspect, iconFit, revealBg, button, align, colors, cards },
+    skipped: cardEls.length - cards.length,
+    hasStyle,
+  }
 }

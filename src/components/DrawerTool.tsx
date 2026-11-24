@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, type SyntheticEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   generateDrawerHtml,
   generateDrawerPreviewHtml,
@@ -14,7 +15,9 @@ import {
   type PanelWidthMode,
   type GenerateDrawerInput,
 } from '../lib/drawer'
+import { parseDrawerHtml } from '../lib/parseDrawer'
 import { SectionLabel } from './SectionLabel'
+import { ImportButton, type ImportParseResult } from './ImportButton'
 import { ColorField, tabTextFor } from './ColorField'
 
 const LABEL_STORAGE_KEY = 'componentHelper-drawer-label'
@@ -83,6 +86,8 @@ export function DrawerTool() {
   const [previewOpen, setPreviewOpen] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [tabOverflow, setTabOverflow] = useState(false)
+  // App's right-aligned nav-row portal target (holds the Import button).
+  const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
 
   const { label, links, tabColor, tabTextColor, borderColor, panelColor, linkColor, vposPercent, tabWidthRem, panelWidthMode, panelWidthRem, panelMaxWidthRem } = state
 
@@ -131,6 +136,12 @@ export function DrawerTool() {
     return () => window.removeEventListener('keydown', onKey)
   }, [isFullscreen])
 
+  // Resolve the App nav-row portal target after mount (App renders it as a sibling).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNavSlot(document.getElementById('tool-nav-slot'))
+  }, [])
+
   // ---- handlers ----
   const handleLabel = (val: string) => {
     localStorage.setItem(LABEL_STORAGE_KEY, val)
@@ -165,6 +176,57 @@ export function DrawerTool() {
 
   const handleReset = () => {
     setState(initialState())
+    setCopied(false)
+  }
+
+  // ---- import (parse pasted HTML back into the editor) ----
+  // Anything beyond the saved label counts as work worth confirming before replacing.
+  const fresh = initialState()
+  const isPristine =
+    links.every(l => l.href.trim() === '' && l.text.trim() === '') &&
+    tabColor === fresh.tabColor &&
+    tabTextColor === fresh.tabTextColor &&
+    borderColor === fresh.borderColor &&
+    panelColor === fresh.panelColor &&
+    linkColor === fresh.linkColor &&
+    vposPercent === fresh.vposPercent &&
+    tabWidthRem === fresh.tabWidthRem &&
+    panelWidthMode === fresh.panelWidthMode &&
+    panelWidthRem === fresh.panelWidthRem &&
+    panelMaxWidthRem === fresh.panelMaxWidthRem
+
+  const parseImport = (raw: string): ImportParseResult<GenerateDrawerInput> => {
+    const parsed = parseDrawerHtml(raw)
+    if (!parsed) {
+      return {
+        ok: false,
+        error: "Couldn't recognize a drawer in that HTML. Paste the code this tool generated (the whole block, or at least the drawer markup).",
+      }
+    }
+    const { input, hasStyle } = parsed
+    const n = input.links.length
+    const notes: string[] = []
+    if (!hasStyle) notes.push('No <style> block was found, so colors, vertical position, and widths used defaults.')
+    if (!input.label) notes.push('No tab label was found.')
+    if (n === 0) notes.push('No links were found.')
+    const neutralized = input.links.filter(l => l.href === '#').length
+    if (neutralized > 0) {
+      notes.push(
+        `${neutralized} link${neutralized === 1 ? ' points' : 's point'} to “#” — usually an unsafe URL that was removed when the code was generated. Check ${neutralized === 1 ? 'it' : 'them'}.`,
+      )
+    }
+    return { ok: true, value: input, summary: `Imported the “${input.label || 'untitled'}” drawer with ${n} link${n === 1 ? '' : 's'}.`, notes }
+  }
+
+  const applyImport = (input: GenerateDrawerInput) => {
+    // The label is also the saved default for next time (same as typing it).
+    if (input.label) localStorage.setItem(LABEL_STORAGE_KEY, input.label)
+    setState({
+      ...input,
+      label: input.label || label,
+      // Keep one blank row when nothing came through, so there's somewhere to type.
+      links: input.links.length > 0 ? input.links.map(l => makeLink(l.href, l.text)) : [makeLink()],
+    })
     setCopied(false)
   }
 
@@ -216,6 +278,24 @@ export function DrawerTool() {
 
   return (
     <div className="flex flex-col xl:flex-row gap-4 items-start">
+
+      {navSlot &&
+        createPortal(
+          <ImportButton
+            title="Import from generated HTML"
+            intro={
+              <>
+                Paste a drawer block this tool generated to recover its editable fields. A partial paste (just the
+                markup, no <code className="text-[11px]">&lt;style&gt;</code>) works too — colors, position, and
+                widths then fall back to defaults.
+              </>
+            }
+            parse={parseImport}
+            replaceWarning={isPristine ? null : 'This replaces the drawer currently in the editor (its links and settings).'}
+            onApply={applyImport}
+          />,
+          navSlot,
+        )}
 
       {/* ── COLUMN 1: Tab label + Links ── */}
       <div className="w-full xl:w-80 shrink-0 space-y-4">

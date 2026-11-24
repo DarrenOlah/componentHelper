@@ -29,7 +29,8 @@ import {
   type CardsSnapshot,
   type CardsCollection,
 } from '../lib/cards'
-import { parseCardsHtml } from '../lib/parseCards'
+import { parseCardsImport } from '../lib/parseCards'
+import { ImportButton, type ImportParseResult } from './ImportButton'
 import { SectionLabel } from './SectionLabel'
 import { ColorField, tabTextFor } from './ColorField'
 import IconPicker from './IconPicker'
@@ -398,13 +399,6 @@ export function CardsTool() {
   const [saveAsName, setSaveAsName] = useState('')
   const [saveAsUrl, setSaveAsUrl] = useState('')
   const [saveAsDesc, setSaveAsDesc] = useState('')
-  // Import: paste generated HTML back to recover the editable fields.
-  const [importOpen, setImportOpen] = useState(false)
-  const [importText, setImportText] = useState('')
-  const [importError, setImportError] = useState<string | null>(null)
-  // When set, the modal swaps from the paste form to a confirmation screen carrying
-  // note-worthy info about the import (e.g. colors fell back to defaults).
-  const [importSummary, setImportSummary] = useState<string | null>(null)
   // The App nav-row portal targets; resolved after mount (App.tsx renders them).
   const [navSlot, setNavSlot] = useState<HTMLElement | null>(null)
   const [navCenter, setNavCenter] = useState<HTMLElement | null>(null)
@@ -532,17 +526,18 @@ export function CardsTool() {
   // so it's in the DOM by the time this runs) — the documented "attach to an external
   // node" use of an effect.
   useEffect(() => {
-    const slot = document.getElementById('cards-nav-slot')
-    const center = document.getElementById('cards-nav-center')
+    const slot = document.getElementById('tool-nav-slot')
+    const center = document.getElementById('tool-nav-center')
     /* eslint-disable react-hooks/set-state-in-effect */
     if (slot) setNavSlot(slot)
     if (center) setNavCenter(center)
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
-  // Close the fullscreen overlay / collections / import / save-as modals on Escape.
+  // Close the fullscreen overlay / collections / save-as modals on Escape.
+  // (The import modal handles its own Escape.)
   useEffect(() => {
-    if (!isFullscreen && !collectionsOpen && !importOpen && !saveAsOpen) return
+    if (!isFullscreen && !collectionsOpen && !saveAsOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       // Escape the Save As dialog first (it stacks above the library modal).
@@ -552,11 +547,10 @@ export function CardsTool() {
       }
       setIsFullscreen(false)
       setCollectionsOpen(false)
-      setImportOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isFullscreen, collectionsOpen, importOpen, saveAsOpen])
+  }, [isFullscreen, collectionsOpen, saveAsOpen])
 
   // Autosave the working draft (debounced) so a refresh or tool switch restores it,
   // including the open-file link so a later Save targets the right collection.
@@ -749,17 +743,34 @@ export function CardsTool() {
   }
 
   // ---- import (parse pasted HTML back into the editor) ----
-  // Parse `text` and load it into the editor. Called on paste (clipboard string) and from
-  // the "Load cards" button (the textarea value, for hand-edited HTML or a failed retry).
-  const attemptImport = (text: string) => {
-    const parsed = parseCardsHtml(text)
+  // Parse only; ImportButton decides whether to apply straight away or show a review
+  // step first (caveats, or unsaved work about to be replaced).
+  const parseImport = (raw: string): ImportParseResult<GenerateCardsInput> => {
+    const parsed = parseCardsImport(raw)
     if (!parsed) {
-      setImportError("Couldn't recognize any cards in that HTML. Paste the code this tool generated (the whole block, or at least the card markup).")
-      return
+      return {
+        ok: false,
+        error: "Couldn't recognize any cards in that HTML. Paste the code this tool generated (the whole block, or at least the card markup).",
+      }
     }
-    // Only guard against overwriting unsaved work; a fresh or saved-and-unmodified editor
-    // (isDirty === false) is safe to replace silently.
-    if (isDirty && !window.confirm('Replace the cards currently in the editor with the imported ones?')) return
+    const { input, skipped, hasStyle } = parsed
+    const n = input.cards.length
+    const typeLabel = TYPES.find(t => t.id === input.type)?.label ?? input.type
+    const notes: string[] = []
+    if (!hasStyle) {
+      notes.push(
+        input.type === 'button'
+          ? 'No <style> block was found, so the Stretch alignment (which lives in the CSS) couldn’t be recovered.'
+          : 'No <style> block was found, so look settings that live in the CSS (colors, image shape, Stretch alignment) used defaults.',
+      )
+    }
+    if (skipped > 0) {
+      notes.push(`${skipped} card${skipped === 1 ? ' was' : 's were'} skipped because no link was found in ${skipped === 1 ? 'it' : 'them'}.`)
+    }
+    return { ok: true, value: input, summary: `Imported ${n} ${typeLabel} card${n === 1 ? '' : 's'}.`, notes }
+  }
+
+  const applyImport = (parsed: GenerateCardsInput) => {
     setState({
       type: parsed.type,
       cardsPerRow: parsed.cardsPerRow,
@@ -775,21 +786,6 @@ export function CardsTool() {
       cards: parsed.cards.map(c => makeCard(c)),
     })
     setLoadedId(null) // imported content isn't tied to a saved collection
-    setImportError(null)
-    const n = parsed.cards.length
-    // Button blocks carry no color vars (the theme classes own their look).
-    const colorsDefaulted = parsed.type !== 'button' && !/--au-gold/.test(text)
-    if (colorsDefaulted) {
-      // Note-worthy: switch to the confirmation screen so the caveat is read before leaving.
-      setImportSummary(
-        `Imported ${n} card${n === 1 ? '' : 's'}. Colors weren’t found in the paste, so defaults were applied.`,
-      )
-    } else {
-      // Clean import: nothing to flag — apply and close immediately.
-      setImportOpen(false)
-      setImportText('')
-      setImportSummary(null)
-    }
   }
 
   // ---- keyboard + unload guards ----
@@ -1567,17 +1563,23 @@ export function CardsTool() {
       {navSlot &&
         createPortal(
           <>
-            <button
-              type="button"
-              onClick={() => {
-                setImportError(null)
-                setImportSummary(null)
-                setImportOpen(true)
-              }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
-            >
-              ⤵ Import
-            </button>
+            <ImportButton
+              title="Import from generated HTML"
+              intro={
+                <>
+                  Paste a card block this tool generated to recover its editable fields. A partial paste (just the
+                  markup, no <code className="text-[11px]">&lt;style&gt;</code>) works too — colors then fall back to defaults.
+                </>
+              }
+              parse={parseImport}
+              // Only guard unsaved work; a fresh or saved-and-unmodified editor is safe to replace.
+              replaceWarning={
+                isDirty
+                  ? `This replaces the ${cards.length} card${cards.length === 1 ? '' : 's'} currently in the editor (unsaved changes will be lost).`
+                  : null
+              }
+              onApply={applyImport}
+            />
             <button
               type="button"
               onClick={() => {
@@ -1848,91 +1850,6 @@ export function CardsTool() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Import modal ── */}
-      {importOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center p-4 overflow-auto"
-          onClick={() => setImportOpen(false)}
-        >
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mt-12" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <h2 className="text-base font-semibold text-gray-800">Import from generated HTML</h2>
-              <button
-                type="button"
-                onClick={() => setImportOpen(false)}
-                aria-label="Close"
-                className="text-sm px-2 py-0.5 rounded text-gray-500 hover:bg-gray-100"
-              >
-                ✕
-              </button>
-            </div>
-
-            {importSummary ? (
-              // Confirmation screen: shown after a note-worthy import (e.g. colors defaulted).
-              <div className="px-4 py-3 space-y-3">
-                <p className="text-sm text-gray-700">{importSummary}</p>
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImportOpen(false)
-                      setImportText('')
-                      setImportSummary(null)
-                      setImportError(null)
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
-                  >
-                    OK
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="px-4 py-3 space-y-2">
-                <p className="text-xs text-gray-500">
-                  Paste a card block this tool generated to recover its editable fields. A partial paste (just the
-                  markup, no <code className="text-[11px]">&lt;style&gt;</code>) works too — colors then fall back to defaults.
-                </p>
-                <textarea
-                  value={importText}
-                  onChange={e => setImportText(e.target.value)}
-                  onPaste={e => {
-                    const text = e.clipboardData.getData('text')
-                    if (!text.trim()) return
-                    e.preventDefault()
-                    setImportText(text) // box reflects the paste (useful if it fails to parse)
-                    attemptImport(text)
-                  }}
-                  placeholder="Paste the generated HTML here…"
-                  rows={8}
-                  className={`${inputCls} font-mono resize-y`}
-                />
-                {importError && <p className="text-xs text-red-600">{importError}</p>}
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImportText('')
-                      setImportError(null)
-                    }}
-                    className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-xs font-medium hover:bg-gray-50"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => attemptImport(importText)}
-                    disabled={!importText.trim()}
-                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Load cards
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
