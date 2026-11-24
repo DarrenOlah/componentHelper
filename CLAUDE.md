@@ -52,6 +52,16 @@ The repo/app name is `componentHelper`; the working folder is `audienceHelper`.
   between its `imageSrc` image and an FA glyph (`iconClass`, e.g. `fa-solid fa-house`);
   both values persist across toggles. FA mode emits class-based `<i aria-hidden>`
   markup only — **no FA CSS ships** (the live site already loads FA Free 6.4.2).
+- **Button card** (`type: 'button'`): a text-only stand-in for when a card image
+  isn't ready. It emits the live theme's own classes — `btn-army-<gold|white|black>`
+  `[-sm][-arrow]` (+ `btn-block` for full width), one style per block via
+  `GenerateCardsInput.button` — plus layout-only scoped CSS (no colors). The body
+  becomes a `title=""` tooltip; an optional FA glyph precedes the label. Its scope
+  id ignores colors/classes (only grid layout + `btn-block` change its CSS).
+- `src/templates/armyButtonsCss.ts` — **preview-only** copy of ArmyTheme2's
+  `btn-army-*` rules (extracted verbatim from the live `skin.css`, `.at2-app` branch
+  only). The preview `<body>` carries `at2-app` so they match; the copy output never
+  ships them. Re-extract rather than hand-edit if the theme changes.
 - `src/data/faCatalog.ts` — **generated** compact FA Free 6.4.2 catalog (name +
   free styles + search terms), lazy-imported by IconPicker. Regenerate after a FA
   version bump with `npm run gen:fa` (reads `scripts/genFaCatalog.mjs`); the output
@@ -88,4 +98,4 @@ npm run dev | test | test:run | build | lint
 
 Always run `npm run test:run` and `npm run build` after touching the generators or
 their CSS — `src/lib/drawer.ts`, `src/templates/drawerCss.ts`, `src/lib/cards.ts`,
-`src/lib/parseCards.ts`, or `src/templates/cardsCss.ts`.
+`src/lib/parseCards.ts`, `src/templates/cardsCss.ts`, or `src/templates/armyButtonsCss.ts`.

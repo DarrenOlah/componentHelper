@@ -11,6 +11,8 @@ import {
   splitAbsoluteHref,
   isRelativeHref,
   DEFAULT_CARD_COLORS,
+  DEFAULT_BUTTON_STYLE,
+  armyButtonClass,
   MAX_CARDS,
   IMAGE_ASPECTS,
   type CardType,
@@ -20,6 +22,8 @@ import {
   type CardImageAspect,
   type CardIconFit,
   type CardRevealBg,
+  type CardButtonStyle,
+  type CardButtonColor,
   type PreviewContext,
   type GenerateCardsInput,
   type CardsSnapshot,
@@ -40,6 +44,7 @@ interface CardsState {
   imageAspect: CardImageAspect
   iconFit: CardIconFit
   revealBg: CardRevealBg
+  button: CardButtonStyle
   align: CardAlign
   accent: string
   accentText: string
@@ -98,6 +103,7 @@ function defaultSettings() {
     imageAspect: 'auto' as CardImageAspect,
     iconFit: 'contain' as CardIconFit,
     revealBg: 'gradient' as CardRevealBg,
+    button: { ...DEFAULT_BUTTON_STYLE } as CardButtonStyle,
     align: 'left' as CardAlign,
     accent: DEFAULT_CARD_COLORS.accent,
     accentText: DEFAULT_CARD_COLORS.accentText,
@@ -127,6 +133,7 @@ function toSnapshot(state: CardsState): CardsSnapshot {
     imageAspect: state.imageAspect,
     iconFit: state.iconFit,
     revealBg: state.revealBg,
+    button: { ...state.button },
     align: state.align,
     accent: state.accent,
     accentText: state.accentText,
@@ -193,6 +200,33 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
   { id: 'hover', label: 'Hover', blurb: 'Image with a panel that slides up on hover/focus.' },
   { id: 'logo', label: 'Logo', blurb: 'Centered icon/logo with a label band; optional hover reveal.' },
   { id: 'lockup', label: 'Lockup', blurb: 'Logo + divider + name, locked side by side as one link.' },
+  { id: 'button', label: 'Button', blurb: 'Text-only theme button — a stand-in until a card image is ready.' },
+]
+
+// Button card: the live theme's btn-army-* variants (one style for the whole block).
+// The UI leads with the class names (what editors type by hand across the site); the
+// friendly descriptions are secondary (tooltips + the help list). Swatch colors are the
+// theme's --armygold / --armywhite / --armyblack, for the picker chip only.
+const BUTTON_COLOR_OPTS: { id: CardButtonColor; hint: string; fill: string; edge: string }[] = [
+  { id: 'gold', hint: 'Gold fill, black text and border', fill: '#ffcc01', edge: '#221f20' },
+  { id: 'white', hint: 'White fill, black text and border', fill: '#ffffff', edge: '#221f20' },
+  { id: 'black', hint: 'Black fill, gold text and border', fill: '#221f20', edge: '#ffcc01' },
+]
+// Optional modifiers, each an on/off class fragment.
+const BUTTON_MODIFIERS: {
+  cls: string
+  hint: string
+  on: (b: CardButtonStyle) => boolean
+  toggle: (b: CardButtonStyle) => Partial<CardButtonStyle>
+}[] = [
+  { cls: '-sm', hint: 'Small: less padding, smaller text.', on: b => b.size === 'sm', toggle: b => ({ size: b.size === 'sm' ? 'regular' : 'sm' }) },
+  { cls: '-arrow', hint: 'Trailing arrow that nudges right on hover.', on: b => b.arrow, toggle: b => ({ arrow: !b.arrow }) },
+  {
+    cls: 'btn-block',
+    hint: 'Full width: fills its column, and a row of buttons shares one height. Off: each button fits its text.',
+    on: b => b.block,
+    toggle: b => ({ block: !b.block }),
+  },
 ]
 
 const PER_ROW: CardsPerRow[] = [1, 2, 3, 4, 5]
@@ -384,10 +418,13 @@ export function CardsTool() {
   // not part of the card content, never persisted). Keyed by card id.
   const [iconSearchByCard, setIconSearchByCard] = useState<Record<number, string>>({})
 
-  const { type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards } = state
+  const { type, cardsPerRow, imageAspect, iconFit, revealBg, button, align, accent, accentText, surface, text, cards } = state
+  const setButton = (patch: Partial<CardButtonStyle>) => setState(s => ({ ...s, button: { ...s.button, ...patch } }))
+  const buttonClassString = `${armyButtonClass(button)}${button.block ? ' btn-block' : ''}`
+  const [classCopied, setClassCopied] = useState(false)
 
   const showHeading = type === 'icon' || type === 'lockup' // hover's gold band is button text, not a heading; lockup's name reuses heading
-  const showBody = type !== 'callout' && type !== 'lockup' // icon __text + hover __desc
+  const showBody = type !== 'callout' && type !== 'lockup' // icon __text + hover __desc + button tooltip
 
   // Stretch + a fixed image shape oversizes the cards on an under-filled row: with no
   // max-width the stretched cards grow wide, and the aspect-ratio makes them grow tall
@@ -416,6 +453,10 @@ export function CardsTool() {
     imageAspect === d.imageAspect &&
     iconFit === d.iconFit &&
     revealBg === d.revealBg &&
+    button.color === d.button.color &&
+    button.size === d.button.size &&
+    button.arrow === d.button.arrow &&
+    button.block === d.button.block &&
     align === d.align &&
     eqHex(accent, d.accent) &&
     eqHex(accentText, d.accentText) &&
@@ -429,6 +470,7 @@ export function CardsTool() {
       imageAspect,
       iconFit,
       revealBg,
+      button,
       align,
       colors: { accent, accentText, surface, text },
       cards: cards.map(({ imageSrc, imageAlt, iconMode, iconClass, heading, body, buttonText, ctaText, buttonHref, external }) => ({
@@ -444,7 +486,7 @@ export function CardsTool() {
         external,
       })),
     }),
-    [type, cardsPerRow, imageAspect, iconFit, revealBg, align, accent, accentText, surface, text, cards],
+    [type, cardsPerRow, imageAspect, iconFit, revealBg, button, align, accent, accentText, surface, text, cards],
   )
 
   const previewHtml = useMemo(
@@ -724,6 +766,7 @@ export function CardsTool() {
       imageAspect: parsed.imageAspect ?? 'auto',
       iconFit: parsed.iconFit ?? 'contain',
       revealBg: parsed.revealBg ?? 'gradient',
+      button: parsed.button ?? { ...DEFAULT_BUTTON_STYLE },
       align: parsed.align ?? 'left',
       accent: parsed.colors.accent,
       accentText: parsed.colors.accentText,
@@ -734,7 +777,8 @@ export function CardsTool() {
     setLoadedId(null) // imported content isn't tied to a saved collection
     setImportError(null)
     const n = parsed.cards.length
-    const colorsDefaulted = !/--au-gold/.test(text)
+    // Button blocks carry no color vars (the theme classes own their look).
+    const colorsDefaulted = parsed.type !== 'button' && !/--au-gold/.test(text)
     if (colorsDefaulted) {
       // Note-worthy: switch to the confirmation screen so the caveat is read before leaving.
       setImportSummary(
@@ -963,7 +1007,84 @@ export function CardsTool() {
           )}
         </div>
 
-        {/* Section 2: Colors */}
+        {/* Section 2: Colors (button card: the theme button style instead) */}
+        {type === 'button' ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <SectionLabel number={2} title="Button classes" done={true} />
+            <p className="text-xs text-gray-400 mb-3">
+              The live theme&rsquo;s own button classes, one set for the whole row. No colors are generated.
+            </p>
+            {/* The class string, front and center — what you'd type by hand elsewhere on the site. */}
+            <div className="mb-4 flex items-start gap-2 rounded-lg bg-gray-900 px-3 py-2">
+              <code className="flex-1 min-w-0 break-words font-mono text-xs leading-5 text-gray-100">
+                <span className="text-gray-500">class=&quot;</span>
+                {/* One nowrap span per class so a line break never splits a class name at its hyphens. */}
+                {buttonClassString.split(' ').map((c, i) => (
+                  <span key={c}>
+                    {i > 0 && ' '}
+                    <span className="whitespace-nowrap">{c}</span>
+                  </span>
+                ))}
+                <span className="text-gray-500">&quot;</span>
+              </code>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(buttonClassString).then(() => {
+                    setClassCopied(true)
+                    setTimeout(() => setClassCopied(false), 1500)
+                  })
+                }}
+                className="shrink-0 rounded border border-gray-600 px-1.5 py-0.5 text-[11px] text-gray-300 hover:bg-gray-800"
+              >
+                {classCopied ? '✓' : 'Copy'}
+              </button>
+            </div>
+
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Color <code className="font-mono font-normal text-gray-500">btn-army-…</code>
+            </label>
+            <div className="flex gap-2">
+              {BUTTON_COLOR_OPTS.map(o => (
+                <button
+                  key={o.id}
+                  type="button"
+                  title={o.hint}
+                  onClick={() => setButton({ color: o.id })}
+                  className={`${segBtn(button.color === o.id)} !px-1 flex items-center justify-center gap-1.5 whitespace-nowrap font-mono`}
+                >
+                  <span className="inline-block h-3 w-3 shrink-0 border" style={{ background: o.fill, borderColor: o.edge }} aria-hidden="true" />
+                  -{o.id}
+                </button>
+              ))}
+            </div>
+
+            <label className="block text-xs font-medium text-gray-700 mb-1 mt-4">Modifiers</label>
+            <div className="flex gap-2">
+              {BUTTON_MODIFIERS.map(m => (
+                <button
+                  key={m.cls}
+                  type="button"
+                  aria-pressed={m.on(button)}
+                  title={m.hint}
+                  onClick={() => setButton(m.toggle(button))}
+                  className={`${segBtn(m.on(button))} !px-1 whitespace-nowrap font-mono`}
+                >
+                  {m.cls}
+                </button>
+              ))}
+            </div>
+            <dl className="mt-2 space-y-0.5 text-[11px] text-gray-400">
+              {BUTTON_MODIFIERS.map(m => (
+                <div key={m.cls} className="flex gap-1.5">
+                  <dt className={`w-16 shrink-0 whitespace-nowrap font-mono ${m.on(button) ? 'text-blue-600' : ''}`}>{m.cls}</dt>
+                  <dd>{m.hint}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 text-xs text-gray-400">Tip: 1 card per row stacks the buttons vertically.</p>
+          </div>
+        ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <SectionLabel number={2} title="Colors" done={true} />
           <p className="text-xs text-gray-400 mb-3">One scheme for the whole row.</p>
@@ -987,6 +1108,7 @@ export function CardsTool() {
             </details>
           )}
         </div>
+        )}
 
       </div>{/* ── END COLUMN 1 ── */}
 
@@ -1030,7 +1152,44 @@ export function CardsTool() {
                   </div>
                 </div>
 
-                {type === 'icon' || type === 'logo' || type === 'lockup' ? (
+                {type === 'button' ? (
+                  <>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">Glyph (optional)</label>
+                    {card.iconMode === 'fa' && card.iconClass ? (
+                      <div className="flex items-center gap-2 mb-1.5 p-2 border border-gray-200 rounded-lg">
+                        <i className={`${card.iconClass} text-xl text-gray-700 w-8 text-center shrink-0`} aria-hidden="true" />
+                        <div className="flex-1 min-w-0">
+                          <code className="block truncate text-right text-[11px] text-gray-500 mb-1">{card.iconClass}</code>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIconPickerFor(card.id)}
+                              className="px-2 py-0.5 text-xs rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            >
+                              Change
+                            </button>
+                            <button
+                              type="button"
+                              // Keep iconClass: it may be the card's FA logo for another type.
+                              onClick={() => updateCard(card.id, { iconMode: 'image' })}
+                              className="px-2 py-0.5 text-xs rounded border border-red-200 text-red-500 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIconPickerFor(card.id)}
+                        className="w-full mb-1.5 px-3 py-2 text-xs rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                      >
+                        ＋ Add a glyph before the text
+                      </button>
+                    )}
+                  </>
+                ) : type === 'icon' || type === 'logo' || type === 'lockup' ? (
                   <>
                     <label className="block text-[11px] font-medium text-gray-600 mb-1">Icon source</label>
                     <div className="flex gap-2 mb-1.5">
@@ -1162,15 +1321,20 @@ export function CardsTool() {
                 {showBody && (
                   <>
                     <label className="block text-[11px] font-medium text-gray-600 mb-1">
-                      Body text (optional)
+                      {type === 'button' ? 'Tooltip (optional)' : 'Body text (optional)'}
                     </label>
                     <textarea
                       value={card.body}
                       onChange={e => updateCard(card.id, { body: e.target.value })}
-                      placeholder="Body text (optional)"
+                      placeholder={type === 'button' ? 'Shown on mouse hover (optional)' : 'Body text (optional)'}
                       rows={2}
                       className={`${inputCls} mb-1.5 resize-y`}
                     />
+                    {type === 'button' && (
+                      <p className="-mt-1 mb-1.5 text-[11px] text-gray-400">
+                        Becomes the link&rsquo;s title tooltip. Touch devices and most screen readers won&rsquo;t show it, so don&rsquo;t put anything essential here.
+                      </p>
+                    )}
                   </>
                 )}
 
@@ -1288,7 +1452,9 @@ export function CardsTool() {
           <p className="mt-2 text-xs text-gray-400">
             {type === 'lockup'
               ? 'Each card needs a name and a URL. A logo is optional — a placeholder shows until you add one.'
-              : 'Each card needs button text and a URL. Image is optional — a placeholder shows until you add one.'}
+              : type === 'button'
+                ? 'Each button needs text and a URL. Switch the type later to add images — the text and links carry over.'
+                : 'Each card needs button text and a URL. Image is optional — a placeholder shows until you add one.'}
           </p>
         </div>
       </div>{/* ── END COLUMN 2 ── */}

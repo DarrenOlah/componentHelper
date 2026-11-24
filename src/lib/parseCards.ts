@@ -9,6 +9,9 @@
 
 import {
   DEFAULT_CARD_COLORS,
+  DEFAULT_BUTTON_STYLE,
+  type CardButtonStyle,
+  type CardButtonColor,
   type CardType,
   type CardAlign,
   type CardColors,
@@ -47,7 +50,7 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   if (typeof DOMParser === 'undefined') return null
 
   // Type from any surviving `au-<type>-card` class (works even for partial/rendered paste).
-  const type = (html.match(/au-(icon|callout|hover|logo|lockup)-card/) || [])[1] as CardType | undefined
+  const type = (html.match(/au-(icon|callout|hover|logo|lockup|button)-card/) || [])[1] as CardType | undefined
   if (!type) return null
 
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -111,6 +114,21 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   const revealBg: CardRevealBg =
     type === 'logo' && /__box\s*\{[^}]*background:\s*var\(--au-surface\)/.test(cssText) ? 'solid' : 'gradient'
 
+  // Button style from the first button's theme class: btn-army-<color>[-sm][-arrow]
+  // (+ btn-block). One style per block, so the first button speaks for the row. Lives
+  // in the markup, so even a markup-only paste recovers it.
+  let button: CardButtonStyle = { ...DEFAULT_BUTTON_STYLE }
+  if (type === 'button') {
+    const cls = cardEls[0].querySelector('[class*="__btn"]')?.className ?? ''
+    const m = cls.match(/(?:^|\s)btn-army-(gold|white|black)(-sm)?(-arrow)?(?=\s|$)/)
+    button = {
+      color: (m?.[1] as CardButtonColor | undefined) ?? DEFAULT_BUTTON_STYLE.color,
+      size: m?.[2] ? 'sm' : 'regular',
+      arrow: !!m?.[3],
+      block: /(?:^|\s)btn-block(?=\s|$)/.test(cls),
+    }
+  }
+
   const txt = (el: Element | null) => (el?.textContent ?? '').trim()
   // Like txt(), but turns <br> into newlines: the lockup name stores its hand-authored
   // line breaks as <br />, which textContent alone would concatenate into one line.
@@ -162,6 +180,18 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
       const a = el.querySelector('[class*="__btn"]')
       if (!a) continue
       Object.assign(card, readAnchor(a))
+    } else if (type === 'button') {
+      // The theme button is the link. Its optional leading <i> is the FA glyph; its
+      // title="" tooltip is the card body.
+      const a = el.querySelector('[class*="__btn"]')
+      if (!a) continue
+      Object.assign(card, readAnchor(a))
+      card.body = attr(a, 'title')
+      const glyph = sanitizeIconClass(a.querySelector('i[class*="fa-"]')?.className ?? '')
+      if (glyph) {
+        card.iconMode = 'fa'
+        card.iconClass = glyph
+      }
     } else if (type === 'lockup') {
       // logo + divider + name, all one link (__title-link). The name is the link text
       // (kept in heading, with its <br /> line breaks recovered as newlines); there's
@@ -184,5 +214,5 @@ export function parseCardsHtml(html: string): GenerateCardsInput | null {
   }
   if (cards.length === 0) return null
 
-  return { type, cardsPerRow, imageAspect, iconFit, revealBg, align, colors, cards }
+  return { type, cardsPerRow, imageAspect, iconFit, revealBg, button, align, colors, cards }
 }

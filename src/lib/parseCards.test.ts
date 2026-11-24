@@ -166,6 +166,32 @@ describe('parseCardsHtml — round-trips generated HTML', () => {
     expect(out.cards[0]).toMatchObject({ iconMode: 'fa', iconClass: 'fa-solid fa-star', heading: 'Star\nUnit', imageSrc: '' })
   })
 
+  it('button cards: style variant, btn-block, glyph, tooltip, and link', () => {
+    const input: GenerateCardsInput = {
+      type: 'button',
+      cardsPerRow: 1,
+      align: 'center',
+      button: { color: 'white', size: 'sm', arrow: true, block: true },
+      colors,
+      cards: [
+        { imageSrc: '', imageAlt: '', iconMode: 'fa', iconClass: 'fa-solid fa-book', heading: '', body: 'More info', buttonText: 'Library', ctaText: '', buttonHref: '/library', external: false },
+        { imageSrc: '', imageAlt: '', iconMode: 'image', iconClass: '', heading: '', body: '', buttonText: 'Press', ctaText: '', buttonHref: 'https://example.com/', external: true },
+      ],
+    }
+    const html = generateCardsHtml(input)
+    for (const src of [html, html.replace(/<style>[\s\S]*?<\/style>/, '')]) {
+      const out = parseCardsHtml(src)!
+      expect(out.type).toBe('button')
+      expect(out.cardsPerRow).toBe(1)
+      expect(out.align).toBe('center')
+      expect(out.button).toEqual({ color: 'white', size: 'sm', arrow: true, block: true })
+      expect(out.cards[0]).toMatchObject({ iconMode: 'fa', iconClass: 'fa-solid fa-book', body: 'More info', buttonText: 'Library', buttonHref: '/library' })
+      expect(out.cards[1]).toMatchObject({ iconMode: 'image', iconClass: '', body: '', buttonText: 'Press', external: true })
+    }
+    const plain = roundTrip({ ...input, button: { color: 'black', size: 'regular', arrow: false, block: false } })!
+    expect(plain.button).toEqual({ color: 'black', size: 'regular', arrow: false, block: false })
+  })
+
   it('recovers 1-up (col-12 only) and 5-up (au-col-5 hook) layouts', () => {
     const oneUp = roundTrip({
       type: 'icon',

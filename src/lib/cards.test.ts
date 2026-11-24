@@ -556,6 +556,74 @@ describe('lockup card', () => {
   })
 })
 
+describe('button card', () => {
+  const btn = (overrides: Partial<GenerateCardsInput> = {}) => gen({ type: 'button', ...overrides })
+
+  it('emits a theme button link with the label, href, and tooltip — no images or colors', () => {
+    const id = scopeId('button', baseInput.colors, { cardsPerRow: 3 })
+    const out = btn()
+    expect(out).toContain(
+      `<a class="btn-army-gold au-button-card--${id}__btn" href="https://example.com/a" title="Body A">Go A</a>`,
+    )
+    expect(out).not.toContain('<img')
+    expect(out).not.toContain('--au-gold')
+    expect(out).not.toContain('@font-face')
+    expect(out).not.toContain('btn-army-gold {') // theme CSS never ships
+  })
+
+  it('emits every theme variant: color × size × arrow, plus btn-block', () => {
+    for (const color of ['gold', 'white', 'black'] as const) {
+      expect(btn({ button: { color, size: 'regular', arrow: false, block: false } })).toContain(`class="btn-army-${color} `)
+      expect(btn({ button: { color, size: 'sm', arrow: false, block: false } })).toContain(`class="btn-army-${color}-sm `)
+      expect(btn({ button: { color, size: 'regular', arrow: true, block: false } })).toContain(`class="btn-army-${color}-arrow `)
+      expect(btn({ button: { color, size: 'sm', arrow: true, block: true } })).toContain(`class="btn-army-${color}-sm-arrow btn-block `)
+    }
+  })
+
+  it('falls back to gold for an unknown color', () => {
+    // @ts-expect-error — simulating a corrupt value
+    expect(btn({ button: { color: 'red" onclick="x', size: 'regular', arrow: false, block: false } })).toContain('class="btn-army-gold ')
+  })
+
+  it('puts an optional FA glyph before the label, only in FA mode', () => {
+    const fa = btn({ cards: [{ ...baseInput.cards[0], iconMode: 'fa', iconClass: 'fa-solid fa-house' }] })
+    expect(fa).toContain('><i class="fa-solid fa-house" aria-hidden="true"></i>Go A</a>')
+    const img = btn({ cards: [{ ...baseInput.cards[0], iconMode: 'image', iconClass: 'fa-solid fa-house' }] })
+    expect(img).not.toContain('<i ')
+  })
+
+  it('omits a blank tooltip, escapes it, and applies external target/rel', () => {
+    expect(btn({ cards: [{ ...baseInput.cards[0], body: '  ' }] })).not.toContain('title=')
+    expect(btn({ cards: [{ ...baseInput.cards[0], body: 'a "b" <c>' }] })).toContain('title="a &quot;b&quot; &lt;c&gt;"')
+    expect(btn({ cards: [{ ...baseInput.cards[0], external: true }] })).toContain('target="_blank" rel="noopener"')
+  })
+
+  it('btn-block fills the column (and the row height); fit-text centers only in a centered row', () => {
+    const block = btn({ button: { color: 'gold', size: 'regular', arrow: false, block: true } })
+    expect(block).toMatch(/__btn \{[^}]*flex: 1 1 auto;[^}]*width: 100%;/)
+    expect(block).not.toContain('.justify-content-center')
+    const fit = btn({ button: { color: 'gold', size: 'regular', arrow: false, block: false } })
+    expect(fit).toMatch(/-grid \.justify-content-center \.au-button-card--\w+ \{ align-items: center; \}/)
+  })
+
+  it('scope id ignores colors/style classes but tracks btn-block and layout', () => {
+    const other = { accent: '#123456', accentText: '#fff', surface: '#fff', text: '#000' }
+    expect(scopeId('button', baseInput.colors, { cardsPerRow: 3 })).toBe(scopeId('button', other, { cardsPerRow: 3 }))
+    expect(scopeId('button', baseInput.colors, { cardsPerRow: 3 })).not.toBe(
+      scopeId('button', baseInput.colors, { cardsPerRow: 3, buttonBlock: true }),
+    )
+    expect(scopeId('button', baseInput.colors, { cardsPerRow: 3 })).not.toBe(scopeId('button', baseInput.colors, { cardsPerRow: 1 }))
+  })
+
+  it('preview loads the theme button CSS under .at2-app; other types skip it', () => {
+    const prev = generateCardsPreviewHtml({ ...baseInput, type: 'button' })
+    expect(prev).toContain('<body class="at2-app">')
+    expect(prev).toContain('.at2-app .btn-army-gold{')
+    expect(prev).toContain('.at2-app .btn-army-black-sm-arrow:after{')
+    expect(generateCardsPreviewHtml(baseInput)).not.toContain('.at2-app .btn-army-gold{')
+  })
+})
+
 describe('revealHover (preview only)', () => {
   it('preview reveals the hover card; copy never does', () => {
     const preview = generateCardsPreviewHtml({ ...baseInput, type: 'hover' }, { revealHover: true })
@@ -655,6 +723,15 @@ describe('coerceSnapshot', () => {
     expect(coerceSnapshot('nope')).toBeNull()
     expect(coerceSnapshot({})).toBeNull()
     expect(coerceSnapshot({ cards: 'x' })).toBeNull()
+  })
+
+  it('accepts the button type and coerces its style (legacy snapshots get the default)', () => {
+    const s = coerceSnapshot({ ...goodSnap, type: 'button', button: { color: 'black', size: 'sm', arrow: true, block: true } })!
+    expect(s.type).toBe('button')
+    expect(s.button).toEqual({ color: 'black', size: 'sm', arrow: true, block: true })
+    expect(coerceSnapshot(goodSnap)!.button).toEqual({ color: 'gold', size: 'regular', arrow: false, block: false })
+    const junk = coerceSnapshot({ ...goodSnap, button: { color: 'red', size: 'xl', arrow: 'yes', block: 1 } })!
+    expect(junk.button).toEqual({ color: 'gold', size: 'regular', arrow: false, block: false })
   })
 
   it('passes through valid settings, colors, and cards', () => {
@@ -813,6 +890,7 @@ describe('snapshotToGenInput', () => {
     imageAspect: '4:3',
     iconFit: 'contain',
     revealBg: 'gradient',
+    button: { color: 'black', size: 'sm', arrow: true, block: true },
     align: 'center',
     accent: '#123456',
     accentText: '#ffffff',
@@ -828,6 +906,7 @@ describe('snapshotToGenInput', () => {
     expect(gi.imageAspect).toBe('4:3')
     expect(gi.iconFit).toBe('contain')
     expect(gi.align).toBe('center')
+    expect(gi.button).toEqual({ color: 'black', size: 'sm', arrow: true, block: true })
     expect(gi.colors).toEqual({ accent: '#123456', accentText: '#ffffff', surface: '#000000', text: '#eeeeee' })
     expect(gi.cards).toHaveLength(1)
     expect(gi.cards[0]).toMatchObject({ heading: 'Alpha', buttonHref: 'https://example.com/a' })
@@ -845,6 +924,7 @@ describe('snapshotsEqual', () => {
     imageAspect: 'auto',
     iconFit: 'contain',
     revealBg: 'gradient',
+    button: { color: 'gold', size: 'regular', arrow: false, block: false },
     align: 'left',
     accent: '#FFCC33',
     accentText: '#000000',
@@ -852,7 +932,12 @@ describe('snapshotsEqual', () => {
     text: '#FFFFFF',
     cards: [{ ...baseInput.cards[0] }, { ...baseInput.cards[1] }],
   }
-  const clone = (): CardsSnapshot => ({ ...base, cards: base.cards.map(c => ({ ...c })) })
+  const clone = (): CardsSnapshot => ({ ...base, button: { ...base.button }, cards: base.cards.map(c => ({ ...c })) })
+
+  it('detects a button-style change', () => {
+    expect(snapshotsEqual(base, { ...clone(), button: { ...base.button, arrow: true } })).toBe(false)
+    expect(snapshotsEqual(base, { ...clone(), button: { ...base.button, block: true } })).toBe(false)
+  })
 
   it('is true for value-equal snapshots (different object identity)', () => {
     expect(snapshotsEqual(base, clone())).toBe(true)

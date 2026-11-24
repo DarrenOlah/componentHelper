@@ -11,13 +11,37 @@ import {
   hoverCardCss,
   logoCardCss,
   lockupCardCss,
+  buttonCardCss,
   cardGridCss,
   PREVIEW_BOOTSTRAP_GRID_CSS,
   PREVIEW_SIM_CSS,
   type CardCssVars,
 } from '../templates/cardsCss'
+import { PREVIEW_ARMY_BUTTONS_CSS } from '../templates/armyButtonsCss'
 
-export type CardType = 'icon' | 'callout' | 'hover' | 'logo' | 'lockup'
+export type CardType = 'icon' | 'callout' | 'hover' | 'logo' | 'lockup' | 'button'
+
+// The button card (a text-only stand-in for when a card's image isn't ready) reuses
+// the live theme's ArmyTheme2 button classes instead of generating its own colors:
+// btn-army-<color>[-sm][-arrow]. One style per block — every button in a row matches.
+// `block` adds Bootstrap's btn-block (full column width, equal heights in a row).
+export const BUTTON_COLORS = ['gold', 'white', 'black'] as const
+export type CardButtonColor = (typeof BUTTON_COLORS)[number]
+export const BUTTON_SIZES = ['regular', 'sm'] as const
+export type CardButtonSize = (typeof BUTTON_SIZES)[number]
+export interface CardButtonStyle {
+  color: CardButtonColor
+  size: CardButtonSize
+  arrow: boolean
+  block: boolean
+}
+export const DEFAULT_BUTTON_STYLE: CardButtonStyle = { color: 'gold', size: 'regular', arrow: false, block: false }
+
+// The theme class for a style. Built only from allowlisted parts (never free text).
+export function armyButtonClass(style: CardButtonStyle): string {
+  const color = BUTTON_COLORS.includes(style.color) ? style.color : 'gold'
+  return `btn-army-${color}${style.size === 'sm' ? '-sm' : ''}${style.arrow ? '-arrow' : ''}`
+}
 
 // Icon source for the icon/logo cards: a Font Awesome glyph or an image. The live
 // site already loads FA Free 6.4.2, so FA mode emits only class-based <i> markup
@@ -36,8 +60,8 @@ export interface CardContent {
   iconMode: CardIconMode
   iconClass: string // FA classes when iconMode==='fa', e.g. "fa-solid fa-house"
   heading: string // icon __title only (omitted when blank)
-  body: string // icon __text, hover __desc (omitted when blank)
-  buttonText: string // icon/callout __btn, hover __title (gold band)
+  body: string // icon __text, hover __desc, button's title="" tooltip (omitted when blank)
+  buttonText: string // icon/callout/button __btn, hover __title (gold band)
   ctaText: string // hover __cta only (the revealed link)
   buttonHref: string
   // external → emit target="_blank" rel="noopener"; also suppresses the UI's
@@ -110,6 +134,9 @@ export interface GenerateCardsInput {
   iconFit?: CardIconFit
   // Defaults to 'gradient' when omitted. Only the logo card reads it.
   revealBg?: CardRevealBg
+  // Defaults to DEFAULT_BUTTON_STYLE when omitted. Only the button card reads it
+  // (and it ignores `colors` — the theme classes own the button colors).
+  button?: CardButtonStyle
   colors: CardColors
   cards: CardContent[]
   align?: CardAlign // defaults to 'left'
@@ -211,6 +238,9 @@ export interface ScopeLayout {
   iconFit?: CardIconFit
   revealBg?: CardRevealBg
   align?: CardAlign
+  // Button card only: btn-block changes the emitted CSS (color/size/arrow are just
+  // theme classes in the markup, so they don't).
+  buttonBlock?: boolean
 }
 
 // ---- Scope id: keeps blocks with different generated CSS from colliding ----
@@ -220,12 +250,18 @@ export interface ScopeLayout {
 // any difference that alters the CSS → different id, so two blocks on one page can't
 // clobber each other's scoped rules. Independent of card *content* (text/images).
 // align left vs center is excluded: it only swaps a markup row class, not the CSS.
+// The button card's CSS reads no colors, aspect, or logo options, so its key is just
+// the grid layout + btn-block: hidden color settings can't churn its id.
 export function scopeId(type: CardType, colors: CardColors, layout?: ScopeLayout): string {
   const v = resolveColors(colors)
   // accentHover is derived from accent, so it's redundant in the key.
   const l = layout ?? {}
-  const layoutKey = `${l.cardsPerRow ?? 3}|${l.imageAspect ?? 'auto'}|${l.iconFit ?? 'contain'}|${l.revealBg ?? 'gradient'}|${l.align === 'stretch' ? 's' : ''}`
-  const key = `${type}|${v.accent}|${v.accentText}|${v.surface}|${v.text}|${layoutKey}`.toLowerCase()
+  const stretch = l.align === 'stretch' ? 's' : ''
+  const layoutKey = `${l.cardsPerRow ?? 3}|${l.imageAspect ?? 'auto'}|${l.iconFit ?? 'contain'}|${l.revealBg ?? 'gradient'}|${stretch}`
+  const key =
+    type === 'button'
+      ? `button|${l.cardsPerRow ?? 3}|${stretch}|${l.buttonBlock ? 'block' : ''}`
+      : `${type}|${v.accent}|${v.accentText}|${v.surface}|${v.text}|${layoutKey}`.toLowerCase()
   let h = 0x811c9dc5
   for (let i = 0; i < key.length; i++) {
     h ^= key.charCodeAt(i)
@@ -359,22 +395,41 @@ function lockupCardMarkup(inst: string, card: CardContent): string {
   ].join('\n')
 }
 
+// Button: a text-only stand-in card that reuses the live theme's btn-army-* button.
+// The <a> carries the theme class (+ btn-block when full width) and our scoped __btn
+// hook; the optional FA glyph sits before the label; the body becomes a title=""
+// tooltip (omitted when blank). No stretched-link overlay — the button IS the link.
+function buttonCardMarkup(inst: string, card: CardContent, style: CardButtonStyle = DEFAULT_BUTTON_STYLE): string {
+  const { href, body, label, linkAttrs } = commonFields(card)
+  const fa = card.iconMode === 'fa' ? sanitizeIconClass(card.iconClass) : ''
+  const cls = `${armyButtonClass(style)}${style.block ? ' btn-block' : ''} ${inst}__btn`
+  const title = body ? ` title="${escapeHtmlAttr(body)}"` : ''
+  const glyph = fa ? `<i class="${fa}" aria-hidden="true"></i>` : ''
+  return `          <a class="${cls}" href="${href}"${title}${linkAttrs}>${glyph}${label}</a>`
+}
+
 const CSS_BUILDERS: Record<
   CardType,
-  (inst: string, v: CardCssVars, opts?: { revealable?: boolean; fit?: CardIconFit; bg?: CardRevealBg }) => string
+  (
+    inst: string,
+    v: CardCssVars,
+    opts?: { revealable?: boolean; fit?: CardIconFit; bg?: CardRevealBg; block?: boolean; gridClass?: string },
+  ) => string
 > = {
   icon: iconCardCss,
   callout: calloutCardCss,
   hover: hoverCardCss,
   logo: logoCardCss,
   lockup: lockupCardCss,
+  button: (inst, _v, opts = {}) => buttonCardCss(inst, { block: !!opts.block, gridClass: opts.gridClass ?? '' }),
 }
-const MARKUP: Record<CardType, (inst: string, card: CardContent) => string> = {
+const MARKUP: Record<CardType, (inst: string, card: CardContent, button?: CardButtonStyle) => string> = {
   icon: iconCardMarkup,
   callout: calloutCardMarkup,
   hover: hoverCardMarkup,
   logo: logoCardMarkup,
   lockup: lockupCardMarkup,
+  button: buttonCardMarkup,
 }
 
 // Full <style> + Bootstrap-grid markup to paste into a DNN Text/HTML module.
@@ -388,7 +443,9 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
       iconFit: input.iconFit,
       revealBg: input.revealBg,
       align: input.align,
+      buttonBlock: input.button?.block,
     })
+  const button = input.button ?? DEFAULT_BUTTON_STYLE
   const base = `au-${input.type}-card`
   const inst = `${base}--${id}`
   // Grid wrapper class scopes the flush, gap-based layout override to this block's
@@ -400,7 +457,7 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
   const hasCoverPhoto = input.type === 'callout' || input.type === 'hover' || input.type === 'logo'
   const ar = hasCoverPhoto ? ASPECT_CSS[input.imageAspect ?? 'auto'] : ''
   const aspectRule = ar ? `\n  .${inst} { aspect-ratio: ${ar}; }` : ''
-  const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover, fit: input.iconFit ?? 'contain', bg: input.revealBg ?? 'gradient' })}
+  const css = `${CSS_BUILDERS[input.type](inst, v, { revealable: !!opts.revealHover, fit: input.iconFit ?? 'contain', bg: input.revealBg ?? 'gradient', block: button.block, gridClass })}
   ${cardGridCss(gridClass, input.cardsPerRow, input.align === 'stretch')}${aspectRule}`
   const cols = columnClass(input.cardsPerRow)
   // center adds .justify-content-center; left and stretch both use a plain row (stretch
@@ -413,7 +470,7 @@ export function generateCardsHtml(input: GenerateCardsInput, opts: RenderOptions
     .map(
       c => `      <div class="${cols} d-flex">
         <div class="${base} ${inst}${openClass}">
-${MARKUP[input.type](inst, c)}
+${MARKUP[input.type](inst, c, button)}
         </div>
       </div>`,
     )
@@ -452,11 +509,12 @@ export function generateCardsPreviewHtml(input: GenerateCardsInput, opts: Render
   ${previewFontFaceCss()}
   ${PREVIEW_BOOTSTRAP_GRID_CSS}
   ${PREVIEW_SIM_CSS}
+  ${input.type === 'button' ? PREVIEW_ARMY_BUTTONS_CSS : ''}
   html, body { margin: 0; background: #f1f5f9; font-family: system-ui, sans-serif; }
   body { padding: 16px 0; box-sizing: border-box; }
 </style>
 </head>
-<body>
+<body class="at2-app">
   <div class="sim-page">
     <div class="row">
 ${leftSide}      <div class="${contentCol}">
@@ -481,6 +539,7 @@ export interface CardsSnapshot {
   imageAspect: CardImageAspect
   iconFit: CardIconFit
   revealBg: CardRevealBg
+  button: CardButtonStyle
   align: CardAlign
   accent: string
   accentText: string
@@ -489,7 +548,7 @@ export interface CardsSnapshot {
   cards: CardContent[]
 }
 
-const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover', 'logo', 'lockup']
+const CARD_TYPES: readonly CardType[] = ['icon', 'callout', 'hover', 'logo', 'lockup', 'button']
 const CARD_ALIGNS: readonly CardAlign[] = ['left', 'center', 'stretch']
 const PREVIEW_CONTEXTS: readonly PreviewContext[] = ['none', 'left', 'both']
 const PER_ROW_VALUES: readonly CardsPerRow[] = [1, 2, 3, 4, 5]
@@ -525,6 +584,17 @@ function coerceCardContent(raw: unknown): CardContent {
   }
 }
 
+function coerceButtonStyle(raw: unknown): CardButtonStyle {
+  const d = DEFAULT_BUTTON_STYLE
+  if (!isObj(raw)) return { ...d }
+  return {
+    color: oneOf(raw.color, BUTTON_COLORS, d.color),
+    size: oneOf(raw.size, BUTTON_SIZES, d.size),
+    arrow: typeof raw.arrow === 'boolean' ? raw.arrow : d.arrow,
+    block: typeof raw.block === 'boolean' ? raw.block : d.block,
+  }
+}
+
 // Validate a settings+cards snapshot. Returns null only when `cards` is absent/not an
 // array (i.e. not a recognizable snapshot); otherwise every field is coerced. Colors
 // pass through as strings — resolveColors/safeColor sanitize them at generation time.
@@ -536,6 +606,7 @@ export function coerceSnapshot(raw: unknown): CardsSnapshot | null {
     imageAspect: oneOf(raw.imageAspect, IMAGE_ASPECTS, 'auto'),
     iconFit: oneOf(raw.iconFit, ICON_FITS, 'contain'),
     revealBg: oneOf(raw.revealBg, REVEAL_FILLS, 'gradient'),
+    button: coerceButtonStyle(raw.button),
     align: oneOf(raw.align, CARD_ALIGNS, 'left'),
     accent: str(raw.accent, DEFAULT_CARD_COLORS.accent),
     accentText: str(raw.accentText, DEFAULT_CARD_COLORS.accentText),
@@ -616,6 +687,7 @@ export function snapshotToGenInput(snap: CardsSnapshot): GenerateCardsInput {
     imageAspect: snap.imageAspect,
     iconFit: snap.iconFit,
     revealBg: snap.revealBg,
+    button: { ...snap.button },
     align: snap.align,
     colors: { accent: snap.accent, accentText: snap.accentText, surface: snap.surface, text: snap.text },
     cards: snap.cards.map(c => ({ ...c })),
@@ -631,6 +703,10 @@ export function snapshotsEqual(a: CardsSnapshot, b: CardsSnapshot): boolean {
     a.imageAspect !== b.imageAspect ||
     a.iconFit !== b.iconFit ||
     a.revealBg !== b.revealBg ||
+    a.button.color !== b.button.color ||
+    a.button.size !== b.button.size ||
+    a.button.arrow !== b.button.arrow ||
+    a.button.block !== b.button.block ||
     a.align !== b.align ||
     a.accent !== b.accent ||
     a.accentText !== b.accentText ||

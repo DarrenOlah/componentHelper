@@ -638,6 +638,42 @@ ${varsBlock(v)}
   }`
 }
 
+// Button card: layout-only CSS. The look (colors, border, font, padding, hover lift,
+// arrow) comes entirely from the live theme's btn-army-* classes, so nothing here
+// sets a color. The card is a flex column so the button can sit at its natural size
+// (left, or centered when the row is centered) or — with btn-block — fill the
+// column's full width AND height, so a row of block buttons stays equal-height when
+// one label wraps. `.inst .inst__btn` (0,2,0, later in the page) beats the theme's
+// `.at2-app .btn-army-*` display/width without !important.
+export function buttonCardCss(inst: string, opts: { block: boolean; gridClass: string }): string {
+  const layout = opts.block
+    ? `  .${inst} { align-items: stretch; }
+  .${inst} .${inst}__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    width: 100%;
+  }`
+    : `  .${opts.gridClass} .justify-content-center .${inst} { align-items: center; }`
+  return `.${inst} {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    margin: 0;
+  }
+  .${inst} .${inst}__btn {
+    box-sizing: border-box;
+    max-width: 100%;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .${inst} .${inst}__btn > i { margin-right: 0.5em; }
+${layout}`
+}
+
 // Minimal Bootstrap-4 grid subset for the PREVIEW iframe only (offline,
 // deterministic). The copy output ships no Bootstrap — the DNN theme provides it.
 // Breakpoints (576/768) match Bootstrap 4 so preview parity holds.
