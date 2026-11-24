@@ -200,7 +200,7 @@ const TYPES: { id: CardType; label: string; blurb: string }[] = [
   { id: 'hover', label: 'Hover', blurb: 'Image with a panel that slides up on hover/focus.' },
   { id: 'logo', label: 'Logo', blurb: 'Centered icon/logo with a label band; optional hover reveal.' },
   { id: 'lockup', label: 'Lockup', blurb: 'Logo + divider + name, locked side by side as one link.' },
-  { id: 'button', label: 'Button', blurb: 'Text-only theme button — a stand-in until a card image is ready.' },
+  { id: 'button', label: 'Button', blurb: 'Text-only ArmyTheme2 button.' },
 ]
 
 // Button card: the live theme's btn-army-* variants (one style for the whole block).
